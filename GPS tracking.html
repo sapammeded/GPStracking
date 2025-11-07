@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D GPS Tracker - Rekam Pergerakan Lengkap</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #4285F4, #34A853);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .logo-icon {
+            font-size: 1.8rem;
+            animation: bounce 2s infinite;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .btn-primary {
+            background-color: #0F9D58;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0d8a4c;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background-color: #DB4437;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #c53929;
+            transform: translateY(-2px);
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            border: 2px solid white;
+            color: white;
+        }
+        
+        .btn-outline:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .info-panel {
+            width: 380px;
+            background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -3px 0 15px rgba(0,0,0,0.1);
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .info-section {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+        
+        .info-section h3 {
+            margin-bottom: 12px;
+            color: #4285F4;
+            font-size: 1.1rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .info-value {
+            color: #222;
+            font-weight: 500;
+        }
+        
+        .tracking-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: linear-gradient(to right, #f8f9fa, #e9ecef);
+        }
+        
+        .status-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+        
+        .status-active {
+            background-color: #0F9D58;
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 10px #0F9D58;
+        }
+        
+        .status-inactive {
+            background-color: #DB4437;
+        }
+        
+        .movement-log {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            background-color: #f8f9fa;
+        }
+        
+        .movement-item {
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #4285F4;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .movement-icon {
+            font-size: 1.1rem;
+        }
+        
+        footer {
+            background: linear-gradient(to right, #4285F4, #34A853);
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .accuracy-indicator {
+            height: 8px;
+            background: linear-gradient(90deg, #DB4437, #F4B400, #0F9D58);
+            margin-top: 8px;
+            border-radius: 4px;
+            width: 100%;
+        }
+        
+        .accuracy-value {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .error-message {
+            background: linear-gradient(to right, #ffcdd2, #ef9a9a);
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            border-left: 4px solid #c62828;
+        }
+        
+        .elevation-chart {
+            height: 150px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .movement-direction {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .direction-btn {
+            flex: 1;
+            padding: 8px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        
+        .direction-btn.active {
+            background: #4285F4;
+            color: white;
+        }
+        
+        .help-tip {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        @media (max-width: 1024px) {
+            .info-panel {
+                width: 340px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .info-panel {
+                width: 100%;
+                max-height: 45vh;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .controls {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="logo-icon">🛰️</span>
+                <h1>3D GPS Tracker</h1>
+            </div>
+            <div class="controls">
+                <button id="startTracking" class="btn-primary">🚀 Mulai Tracking</button>
+                <button id="stopTracking" class="btn-secondary" disabled>⏹️ Hentikan</button>
+                <button id="clearData" class="btn-outline">🗑️ Hapus Data</button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="info-panel">
+                <div class="error-message" id="errorMessage">
+                    <strong>⚠️ Error:</strong> <span id="errorText"></span>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📊 Status Tracking</h3>
+                    <div class="tracking-status">
+                        <div class="status-indicator status-inactive" id="statusIndicator"></div>
+                        <span id="statusText">Tidak aktif</span>
+                    </div>
+                    <p class="help-tip">Izinkan akses lokasi & aktifkan GPS untuk akurasi tinggi</p>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📍 Informasi Posisi</h3>
+                    <div class="info-item">
+                        <span class="info-label">Latitude:</span>
+                        <span class="info-value" id="latitude">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Longitude:</span>
+                        <span class="info-value" id="longitude">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Ketinggian:</span>
+                        <span class="info-value" id="altitude">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Akurasi:</span>
+                        <span class="info-value" id="accuracy">-</span>
+                    </div>
+                    <div class="accuracy-indicator" id="accuracyBar"></div>
+                    <div class="accuracy-value" id="accuracyValue">- meter</div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📈 Statistik Perjalanan</h3>
+                    <div class="info-item">
+                        <span class="info-label">Jarak Tempuh:</span>
+                        <span class="info-value" id="distance">0 meter</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Durasi:</span>
+                        <span class="info-value" id="duration">00:00:00</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Kecepatan:</span>
+                        <span class="info-value" id="speed">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Jumlah Titik:</span>
+                        <span class="info-value" id="pointCount">0</span>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📊 Grafik Ketinggian</h3>
+                    <div class="elevation-chart" id="elevationChart"></div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>🔄 Riwayat Pergerakan</h3>
+                    <div class="movement-log" id="movementLog">
+                        <!-- Riwayat pergerakan akan ditampilkan di sini -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>3D GPS Tracker &copy; 2023 - Rekam setiap pergerakan dengan visualisasi 3D</p>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Variabel global
+        let isTracking = false;
+        let watchId = null;
+        let startTime = null;
+        let timerInterval = null;
+        let totalDistance = 0;
+        let positions = [];
+        let movementHistory = [];
+        let map = null;
+        let userMarker = null;
+        let trackPolyline = null;
+        let elevationChart = null;
+        
+        // Elemen DOM
+        const startButton = document.getElementById('startTracking');
+        const stopButton = document.getElementById('stopTracking');
+        const clearButton = document.getElementById('clearData');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const latitudeElement = document.getElementById('latitude');
+        const longitudeElement = document.getElementById('longitude');
+        const altitudeElement = document.getElementById('altitude');
+        const accuracyElement = document.getElementById('accuracy');
+        const accuracyBar = document.getElementById('accuracyBar');
+        const accuracyValue = document.getElementById('accuracyValue');
+        const distanceElement = document.getElementById('distance');
+        const durationElement = document.getElementById('duration');
+        const speedElement = document.getElementById('speed');
+        const pointCountElement = document.getElementById('pointCount');
+        const movementLog = document.getElementById('movementLog');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const elevationChartElement = document.getElementById('elevationChart');
+        
+        // Inisialisasi peta
+        function initMap() {
+            // Default ke Jakarta jika lokasi tidak tersedia
+            const defaultLat = -6.2088;
+            const defaultLng = 106.8456;
+            
+            map = L.map('map').setView([defaultLat, defaultLng], 18);
+            
+            // Tambahkan tile layer (peta dasar)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Tambahkan marker untuk posisi pengguna
+            userMarker = L.marker([defaultLat, defaultLng])
+                .addTo(map)
+                .bindPopup('Posisi Anda')
+                .openPopup();
+            
+            // Inisialisasi polyline untuk tracking
+            trackPolyline = L.polyline([], {
+                color: '#4285F4',
+                weight: 6,
+                opacity: 0.8,
+                lineJoin: 'round'
+            }).addTo(map);
+            
+            // Inisialisasi grafik ketinggian
+            initElevationChart();
+        }
+        
+        // Inisialisasi grafik ketinggian
+        function initElevationChart() {
+            const layout = {
+                title: 'Perubahan Ketinggian',
+                height: 150,
+                margin: { t: 30, r: 10, b: 30, l: 40 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { size: 10 },
+                xaxis: { title: 'Titik', showgrid: true, gridcolor: '#f0f0f0' },
+                yaxis: { title: 'Meter', showgrid: true, gridcolor: '#f0f0f0' }
+            };
+            
+            const data = [{
+                x: [],
+                y: [],
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#34A853', width: 3 },
+                marker: { size: 4, color: '#0F9D58' }
+            }];
+            
+            elevationChart = Plotly.newPlot(elevationChartElement, data, layout, { displayModeBar: false });
+        }
+        
+        // Fungsi untuk menampilkan error
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.style.display = 'block';
+            
+            // Sembunyikan error setelah 5 detik
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Fungsi untuk memulai tracking
+        function startTracking() {
+            if (!navigator.geolocation) {
+                showError('Browser tidak mendukung geolocation');
+                return;
+            }
+            
+            // Minta izin lokasi terlebih dahulu
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // Izin diberikan, mulai tracking
+                    isTracking = true;
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    statusIndicator.className = 'status-indicator status-active';
+                    statusText.textContent = 'Aktif - Merekam...';
+                    
+                    // Reset data sebelumnya jika diperlukan
+                    if (positions.length === 0) {
+                        totalDistance = 0;
+                        startTime = new Date();
+                        updateTimer();
+                        timerInterval = setInterval(updateTimer, 1000);
+                        movementHistory = [];
+                    }
+                    
+                    // Mulai melacak posisi dengan akurasi tinggi
+                    watchId = navigator.geolocation.watchPosition(
+                        position => {
+                            const { latitude, longitude, accuracy, altitude, speed } = position.coords;
+                            
+                            // Update peta
+                            updateMap(latitude, longitude);
+                            
+                            // Simpan posisi
+                            const newPosition = {
+                                latitude,
+                                longitude,
+                                altitude: altitude || 0,
+                                accuracy,
+                                speed: speed || 0,
+                                timestamp: new Date()
+                            };
+                            
+                            // Analisis pergerakan
+                            analyzeMovement(newPosition);
+                            
+                            // Hitung jarak dari posisi sebelumnya jika ada
+                            if (positions.length > 0) {
+                                const lastPosition = positions[positions.length - 1];
+                                const distance = calculateDistance(
+                                    lastPosition.latitude, lastPosition.longitude,
+                                    latitude, longitude
+                                );
+                                totalDistance += distance;
+                            }
+                            
+                            positions.push(newPosition);
+                            
+                            // Update UI
+                            updatePositionInfo(newPosition);
+                            updateStatistics();
+                            updateMovementLog();
+                            updateTrackLine();
+                            updateElevationChart();
+                        },
+                        error => {
+                            handleGeolocationError(error);
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                },
+                (error) => {
+                    handleGeolocationError(error);
+                }
+            );
+        }
+        
+        // Fungsi untuk menganalisis pergerakan
+        function analyzeMovement(newPosition) {
+            if (positions.length === 0) {
+                // Posisi pertama
+                addMovementLog('📍 Posisi awal direkam', newPosition.timestamp);
+                return;
+            }
+            
+            const lastPosition = positions[positions.length - 1];
+            const distance = calculateDistance(
+                lastPosition.latitude, lastPosition.longitude,
+                newPosition.latitude, newPosition.longitude
+            );
+            
+            // Deteksi perubahan ketinggian
+            const altitudeDiff = newPosition.altitude - lastPosition.altitude;
+            
+            // Hanya catat pergerakan yang signifikan (> 0.5 meter)
+            if (distance > 0.5) {
+                let direction = getMovementDirection(
+                    lastPosition.latitude, lastPosition.longitude,
+                    newPosition.latitude, newPosition.longitude
+                );
+                
+                let movementText = `🔄 Bergerak ${direction} sejauh ${distance.toFixed(1)} meter`;
+                
+                // Tambahkan informasi ketinggian jika perubahan signifikan
+                if (Math.abs(altitudeDiff) > 0.5) {
+                    if (altitudeDiff > 0) {
+                        movementText += ` 📈 (Naik ${altitudeDiff.toFixed(1)} meter)`;
+                    } else {
+                        movementText += ` 📉 (Turun ${Math.abs(altitudeDiff).toFixed(1)} meter)`;
+                    }
+                }
+                
+                addMovementLog(movementText, newPosition.timestamp);
+            }
+        }
+        
+        // Fungsi untuk menentukan arah pergerakan
+        function getMovementDirection(lat1, lng1, lat2, lng2) {
+            const dLng = lng2 - lng1;
+            const dLat = lat2 - lat1;
+            
+            // Hitung bearing (derajat dari utara)
+            const bearing = (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
+            
+            // Tentukan arah berdasarkan bearing
+            if (bearing >= 337.5 || bearing < 22.5) return 'UTARA';
+            if (bearing >= 22.5 && bearing < 67.5) return 'TIMUR LAUT';
+            if (bearing >= 67.5 && bearing < 112.5) return 'TIMUR';
+            if (bearing >= 112.5 && bearing < 157.5) return 'TENGGARA';
+            if (bearing >= 157.5 && bearing < 202.5) return 'SELATAN';
+            if (bearing >= 202.5 && bearing < 247.5) return 'BARAT DAYA';
+            if (bearing >= 247.5 && bearing < 292.5) return 'BARAT';
+            if (bearing >= 292.5 && bearing < 337.5) return 'BARAT LAUT';
+            
+            return 'TIDAK DIKETAHUI';
+        }
+        
+        // Fungsi untuk menambahkan log pergerakan
+        function addMovementLog(text, timestamp) {
+            const timeStr = timestamp.toLocaleTimeString();
+            movementHistory.unshift({ text, time: timeStr });
+            
+            // Batasi jumlah log yang ditampilkan
+            if (movementHistory.length > 10) {
+                movementHistory.pop();
+            }
+        }
+        
+        // Fungsi untuk menangani error geolocation
+        function handleGeolocationError(error) {
+            let errorMessage = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'Akses lokasi ditolak. Izinkan akses lokasi di pengaturan browser Anda.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'Informasi lokasi tidak tersedia. Pastikan GPS diaktifkan.';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'Permintaan lokasi timeout. Coba lagi.';
+                    break;
+                default:
+                    errorMessage = 'Error tidak diketahui: ' + error.message;
+            }
+            showError(errorMessage);
+            
+            if (isTracking) {
+                stopTracking();
+            }
+        }
+        
+        // Fungsi untuk menghentikan tracking
+        function stopTracking() {
+            isTracking = false;
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            statusIndicator.className = 'status-indicator status-inactive';
+            statusText.textContent = 'Tidak aktif';
+            
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            addMovementLog('⏹️ Tracking dihentikan', new Date());
+        }
+        
+        // Fungsi untuk menghapus data
+        function clearData() {
+            if (isTracking) {
+                stopTracking();
+            }
+            
+            positions = [];
+            movementHistory = [];
+            totalDistance = 0;
+            startTime = null;
+            
+            // Reset UI
+            latitudeElement.textContent = '-';
+            longitudeElement.textContent = '-';
+            altitudeElement.textContent = '-';
+            accuracyElement.textContent = '-';
+            accuracyValue.textContent = '- meter';
+            distanceElement.textContent = '0 meter';
+            durationElement.textContent = '00:00:00';
+            speedElement.textContent = '-';
+            pointCountElement.textContent = '0';
+            movementLog.innerHTML = '';
+            
+            // Reset accuracy bar
+            accuracyBar.style.width = '0%';
+            
+            // Reset peta
+            if (trackPolyline) {
+                map.removeLayer(trackPolyline);
+                trackPolyline = L.polyline([], {
+                    color: '#4285F4',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round'
+                }).addTo(map);
+            }
+            
+            // Reset grafik ketinggian
+            initElevationChart();
+            
+            // Kembali ke view default
+            map.setView([-6.2088, 106.8456], 18);
+            
+            addMovementLog('🗑️ Data direset', new Date());
+        }
+        
+        // Fungsi untuk memperbarui peta
+        function updateMap(lat, lng) {
+            // Update marker position
+            userMarker.setLatLng([lat, lng]);
+            
+            // Update map view to follow user (jika zoom level cukup tinggi)
+            if (map.getZoom() >= 16) {
+                map.setView([lat, lng], map.getZoom());
+            }
+        }
+        
+        // Fungsi untuk memperbarui garis tracking di peta
+        function updateTrackLine() {
+            if (positions.length > 0) {
+                const latLngs = positions.map(pos => [pos.latitude, pos.longitude]);
+                trackPolyline.setLatLngs(latLngs);
+            }
+        }
+        
+        // Fungsi untuk memperbarui grafik ketinggian
+        function updateElevationChart() {
+            if (positions.length > 0) {
+                const xData = positions.map((_, index) => index + 1);
+                const yData = positions.map(pos => pos.altitude || 0);
+                
+                Plotly.update(elevationChartElement, {
+                    x: [xData],
+                    y: [yData]
+                });
+            }
+        }
+        
+        // Fungsi untuk menghitung jarak antara dua koordinat (dalam meter)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Radius bumi dalam meter
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
+            return R * c;
+        }
+        
+        // Fungsi untuk memperbarui informasi posisi di UI
+        function updatePositionInfo(position) {
+            latitudeElement.textContent = position.latitude.toFixed(6);
+            longitudeElement.textContent = position.longitude.toFixed(6);
+            altitudeElement.textContent = (position.altitude ? position.altitude.toFixed(1) + ' m' : 'Tidak tersedia');
+            accuracyElement.textContent = position.accuracy.toFixed(1) + ' m';
+            
+            // Update accuracy bar (semakin akurat, semakin hijau)
+            const accuracy = position.accuracy;
+            let accuracyPercent = 100;
+            
+            if (accuracy <= 10) {
+                accuracyPercent = 100; // Sangat akurat
+            } else if (accuracy <= 50) {
+                accuracyPercent = 80; // Akurat
+            } else if (accuracy <= 100) {
+                accuracyPercent = 60; // Cukup akurat
+            } else if (accuracy <= 200) {
+                accuracyPercent = 40; // Kurang akurat
+            } else {
+                accuracyPercent = 20; // Tidak akurat
+            }
+            
+            accuracyBar.style.width = `${accuracyPercent}%`;
+            accuracyValue.textContent = `${accuracy.toFixed(1)} meter`;
+        }
+        
+        // Fungsi untuk memperbarui statistik di UI
+        function updateStatistics() {
+            // Update jarak
+            if (totalDistance < 1000) {
+                distanceElement.textContent = `${totalDistance.toFixed(1)} meter`;
+            } else {
+                distanceElement.textContent = `${(totalDistance / 1000).toFixed(2)} km`;
+            }
+            
+            // Update jumlah titik
+            pointCountElement.textContent = positions.length;
+            
+            // Hitung kecepatan jika ada lebih dari 1 titik
+            if (positions.length > 1) {
+                const lastPosition = positions[positions.length - 1];
+                const prevPosition = positions[positions.length - 2];
+                
+                const distance = calculateDistance(
+                    prevPosition.latitude, prevPosition.longitude,
+                    lastPosition.latitude, lastPosition.longitude
+                );
+                
+                const timeDiff = (lastPosition.timestamp - prevPosition.timestamp) / 1000; // dalam detik
+                
+                if (timeDiff > 0) {
+                    const speedMps = distance / timeDiff; // meter per detik
+                    const speedKph = speedMps * 3.6; // km per jam
+                    
+                    speedElement.textContent = `${speedKph.toFixed(1)} km/jam`;
+                }
+            }
+        }
+        
+        // Fungsi untuk memperbarui timer
+        function updateTimer() {
+            if (!startTime) return;
+            
+            const now = new Date();
+            const diff = now - startTime;
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            durationElement.textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Fungsi untuk memperbarui log pergerakan
+        function updateMovementLog() {
+            movementLog.innerHTML = '';
+            
+            movementHistory.forEach(item => {
+                const movementItem = document.createElement('div');
+                movementItem.className = 'movement-item';
+                movementItem.innerHTML = `
+                    <span class="movement-icon">${item.text.split(' ')[0]}</span>
+                    <div>
+                        <div>${item.text}</div>
+                        <small style="color: #666;">${item.time}</small>
+                    </div>
+                `;
+                movementLog.appendChild(movementItem);
+            });
+        }
+        
+        // Event listeners
+        startButton.addEventListener('click', startTracking);
+        stopButton.addEventListener('click', stopTracking);
+        clearButton.addEventListener('click', clearData);
+        
+        // Inisialisasi aplikasi
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            clearData();
+        });
+    </script>
+</body>
+</html>
