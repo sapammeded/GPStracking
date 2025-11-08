@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Mapping Tool - Outdoor Focus</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif;
+            background: #000;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.9);
+            padding: 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 2px solid #00ff88;
+        }
+        
+        .btn {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 15px;
+            background: #00ff88;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 70px;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-pause {
+            background: #ff9800;
+        }
+        
+        .btn-stop {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .btn-save {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .btn-mode {
+            background: #9c27b0;
+            color: white;
+        }
+        
+        .status-panel {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.95);
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            min-width: 220px;
+            border: 2px solid #333;
+        }
+        
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .status-label {
+            color: #ccc;
+        }
+        
+        .status-value {
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .accuracy-high { color: #00ff88; }
+        .accuracy-medium { color: #ff9800; }
+        .accuracy-low { color: #ff4444; }
+        
+        .mode-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-weight: bold;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 2px solid;
+        }
+        
+        .mode-outdoor { 
+            background: #00ff88; 
+            color: black; 
+            border-color: #00c853;
+        }
+        
+        .mode-indoor { 
+            background: #ff9800; 
+            color: black; 
+            border-color: #f57c00;
+        }
+        
+        .tracking-active {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .download-options {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 2000;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(10px);
+        }
+        
+        .format-btn {
+            display: block;
+            width: 200px;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 10px;
+            background: #333;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .format-btn:hover {
+            background: #00ff88;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="status-panel">
+        <div class="status-item">
+            <span class="status-label">📍 Status:</span>
+            <span class="status-value" id="trackStatus">READY</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">🎯 Akurasi:</span>
+            <span class="status-value" id="accuracyInfo">-</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">📊 Titik:</span>
+            <span class="status-value" id="pointCount">0</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">📏 Jarak:</span>
+            <span class="status-value" id="distance">0</span>m
+        </div>
+        <div class="status-item">
+            <span class="status-label">🕒 Durasi:</span>
+            <span class="status-value" id="duration">0</span>s
+        </div>
+        <div class="status-item">
+            <span class="status-label">🚶 Langkah:</span>
+            <span class="status-value" id="stepCount">0</span>
+        </div>
+    </div>
+    
+    <div class="mode-indicator mode-outdoor" id="modeIndicator">
+        OUTDOOR GPS
+    </div>
+    
+    <div class="controls">
+        <button class="btn" id="startBtn" onclick="startTracking()">▶ START</button>
+        <button class="btn btn-pause hidden" id="pauseBtn" onclick="pauseTracking()">⏸ PAUSE</button>
+        <button class="btn" onclick="addManualPoint()">📍 MARK</button>
+        <button class="btn btn-mode" onclick="switchMode()">🔀 MODE</button>
+        <button class="btn btn-stop hidden" id="stopBtn" onclick="stopTracking()">⏹ STOP</button>
+        <button class="btn btn-save" onclick="showDownloadOptions()">💾 SAVE</button>
+    </div>
+
+    <div class="download-options hidden" id="downloadOptions">
+        <h3 style="text-align: center; margin-bottom: 15px;">📥 DOWNLOAD FORMAT</h3>
+        <button class="format-btn" onclick="downloadData('json')">📄 JSON (Recommended)</button>
+        <button class="format-btn" onclick="downloadData('gpx')">🗺️ GPX (Maps Software)</button>
+        <button class="format-btn" onclick="downloadData('kml')">🌍 KML (Google Earth)</button>
+        <button class="format-btn" onclick="downloadData('csv')">📊 CSV (Excel)</button>
+        <button class="format-btn" style="background: #ff4444; margin-top: 15px;" onclick="hideDownloadOptions()">❌ TUTUP</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Global variables
+        let map, currentMarker, trackPolyline;
+        let points = [];
+        let isTracking = false;
+        let isPaused = false;
+        let watchId = null;
+        let totalDistance = 0;
+        let stepCount = 0;
+        let startTime = null;
+        let durationInterval = null;
+        let currentMode = 'outdoor';
+        let gpsStabilized = false;
+        
+        // Indoor tracking variables
+        let indoorPosition = { x: 0, y: 0 };
+        let lastStepTime = 0;
+        let currentDirection = 0;
+        const stepLength = 0.7;
+        let startPosition = null;
+
+        // Initialize Map
+        function initMap() {
+            map = L.map('map').setView([-6.2088, 106.8456], 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            console.log('🗺️ Map initialized');
+            locateUser();
+        }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        map.setView([lat, lng], 18);
+                        
+                        currentMarker = L.marker([lat, lng])
+                            .addTo(map)
+                            .bindPopup('📍 Lokasi Anda')
+                            .openPopup();
+                            
+                        startPosition = { lat, lng };
+                        console.log('📍 User location found');
+                    },
+                    function(error) {
+                        console.warn('GPS Error:', error);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            }
+        }
+
+        function startTracking() {
+            if (isTracking) return;
+            
+            console.log('🚀 START TRACKING - OUTDOOR MODE');
+            isTracking = true;
+            isPaused = false;
+            gpsStabilized = false;
+            points = [];
+            totalDistance = 0;
+            stepCount = 0;
+            startTime = new Date();
+            indoorPosition = { x: 0, y: 0 };
+            
+            // FORCE OUTDOOR MODE DULU - JANGAN AUTO SWITCH!
+            currentMode = 'outdoor';
+            switchToOutdoorMode();
+            
+            // Update UI
+            document.getElementById('trackStatus').textContent = 'TRACKING (GPS Stabilizing...)';
+            document.getElementById('trackStatus').classList.add('tracking-active');
+            document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('pauseBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+            
+            startDurationTimer();
+            startGPSTracking();
+            startIndoorSensors();
+            
+            // TUNGGU 15 DETIK BUAT GPS STABIL DULU
+            setTimeout(() => {
+                gpsStabilized = true;
+                document.getElementById('trackStatus').textContent = 'TRACKING ACTIVE';
+                console.log('✅ GPS stabilization period ended');
+            }, 15000);
+            
+            alert('🚀 TRACKING DIMULAI!\nMode: OUTDOOR (GPS)\nTunggu 15 detik untuk GPS stabil...');
+        }
+
+        function pauseTracking() {
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                document.getElementById('trackStatus').textContent = 'PAUSED';
+                document.getElementById('trackStatus').classList.remove('tracking-active');
+                document.getElementById('pauseBtn').textContent = '▶ RESUME';
+                
+                setTimeout(() => {
+                    const desc = prompt('Tambahkan deskripsi titik ini:') || 'Manual Point';
+                    addManualPoint(desc);
+                }, 500);
+                
+            } else {
+                document.getElementById('trackStatus').textContent = 'TRACKING ACTIVE';
+                document.getElementById('trackStatus').classList.add('tracking-active');
+                document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
+            }
+        }
+
+        function stopTracking() {
+            if (!isTracking) return;
+            
+            console.log('⏹ STOP TRACKING');
+            isTracking = false;
+            isPaused = false;
+            
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            stopIndoorSensors();
+            stopDurationTimer();
+            
+            document.getElementById('trackStatus').textContent = 'STOPPED';
+            document.getElementById('trackStatus').classList.remove('tracking-active');
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('pauseBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
+            
+            const duration = Math.round((new Date() - startTime) / 1000);
+            alert(`✅ TRACKING SELESAI!\n${points.length} titik | ${totalDistance.toFixed(1)}m | ${duration}s`);
+        }
+
+        function switchMode() {
+            if (currentMode === 'outdoor') {
+                switchToIndoorMode();
+                alert('🔀 Switch to INDOOR mode (Step Tracking)');
+            } else {
+                switchToOutdoorMode();
+                alert('🔀 Switch to OUTDOOR mode (GPS Tracking)');
+            }
+        }
+
+        function startGPSTracking() {
+            if (!navigator.geolocation) return;
+            
+            watchId = navigator.geolocation.watchPosition(
+                handleGPSUpdate,
+                handleGPSError,
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+            );
+        }
+
+        function handleGPSUpdate(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            updateAccuracyDisplay(accuracy);
+            
+            if (currentMarker) {
+                currentMarker.setLatLng([lat, lng]);
+            } else {
+                currentMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Posisi Anda');
+            }
+            
+            // Auto center hanya di awal
+            if (points.length < 5) {
+                map.setView([lat, lng], 18);
+            }
+            
+            // AUTO SWITCH HANYA JIKA SUDAH STABIL & ACCURACY BENER2 JELEK
+            const trackingDuration = (new Date() - startTime) / 1000;
+            if (gpsStabilized && trackingDuration > 15) {
+                if (accuracy > 50 && currentMode !== 'indoor') {
+                    switchToIndoorMode();
+                } else if (accuracy <= 30 && currentMode !== 'outdoor') {
+                    switchToOutdoorMode();
+                }
+            }
+            
+            // RECORD POINT JIKA OUTDOOR MODE
+            if (isTracking && !isPaused && currentMode === 'outdoor') {
+                addPoint({ 
+                    lat, lng, 
+                    type: 'gps', 
+                    accuracy,
+                    timestamp: new Date().toISOString(),
+                    mode: 'outdoor'
+                });
+                
+                // Calculate distance
+                if (points.length > 1) {
+                    const prevPoint = points[points.length - 2];
+                    if (prevPoint.lat && prevPoint.lng) {
+                        const distance = calculateDistance(prevPoint.lat, prevPoint.lng, lat, lng);
+                        totalDistance += distance;
+                        updateDisplay();
+                    }
+                }
+            }
+        }
+
+        function startIndoorSensors() {
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', handleDeviceMotion);
+            }
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleDeviceOrientation);
+            }
+        }
+
+        function stopIndoorSensors() {
+            window.removeEventListener('devicemotion', handleDeviceMotion);
+            window.removeEventListener('deviceorientation', handleDeviceOrientation);
+        }
+
+        function handleDeviceMotion(event) {
+            if (!isTracking || isPaused || currentMode !== 'indoor') return;
+            
+            const acceleration = event.accelerationIncludingGravity;
+            const now = Date.now();
+            
+            if (acceleration && Math.abs(acceleration.z) > 1.5 && now - lastStepTime > 300) {
+                stepCount++;
+                updateIndoorPosition();
+                lastStepTime = now;
+                updateDisplay();
+            }
+        }
+
+        function handleDeviceOrientation(event) {
+            if (event.alpha !== null) {
+                currentDirection = event.alpha;
+            }
+        }
+
+        function updateIndoorPosition() {
+            const rad = currentDirection * Math.PI / 180;
+            indoorPosition.x += Math.sin(rad) * stepLength;
+            indoorPosition.y += Math.cos(rad) * stepLength;
+            
+            // Convert to approximate coordinates relative to start
+            if (startPosition) {
+                const approxLat = startPosition.lat + (indoorPosition.y / 111320);
+                const approxLng = startPosition.lng + (indoorPosition.x / (111320 * Math.cos(startPosition.lat * Math.PI / 180)));
+                
+                addPoint({
+                    lat: approxLat,
+                    lng: approxLng,
+                    type: 'indoor',
+                    direction: currentDirection,
+                    timestamp: new Date().toISOString(),
+                    mode: 'indoor',
+                    steps: stepCount,
+                    indoorPosition: { ...indoorPosition }
+                });
+                
+                totalDistance += stepLength;
+                
+                // Update marker position for indoor mode
+                if (currentMarker) {
+                    currentMarker.setLatLng([approxLat, approxLng]);
+                }
+            }
+        }
+
+        function switchToIndoorMode() {
+            currentMode = 'indoor';
+            document.getElementById('modeIndicator').className = 'mode-indicator mode-indoor';
+            document.getElementById('modeIndicator').textContent = 'INDOOR STEP';
+            document.getElementById('accuracyInfo').innerHTML = '<span class="accuracy-medium">Step Tracking</span>';
+            console.log('🔀 Switched to INDOOR mode');
+        }
+
+        function switchToOutdoorMode() {
+            currentMode = 'outdoor';
+            document.getElementById('modeIndicator').className = 'mode-indicator mode-outdoor';
+            document.getElementById('modeIndicator').textContent = 'OUTDOOR GPS';
+            console.log('🔀 Switched to OUTDOOR mode');
+        }
+
+        function addPoint(pointData) {
+            points.push(pointData);
+            updateDisplay();
+            drawTrackLine();
+        }
+
+        function addManualPoint(description = 'Manual Point') {
+            const currentLatLng = currentMarker ? currentMarker.getLatLng() : map.getCenter();
+            const pointData = {
+                lat: currentLatLng.lat,
+                lng: currentLatLng.lng,
+                type: 'manual',
+                description: description,
+                timestamp: new Date().toISOString(),
+                mode: currentMode
+            };
+            
+            addPoint(pointData);
+            
+            L.marker([currentLatLng.lat, currentLatLng.lng], {
+                icon: L.divIcon({
+                    html: '📍',
+                    iconSize: [25, 25],
+                    className: 'manual-marker'
+                })
+            }).addTo(map).bindPopup(`<b>${description}</b>`);
+        }
+
+        function drawTrackLine() {
+            if (trackPolyline) {
+                map.removeLayer(trackPolyline);
+            }
+            
+            const latLngs = points.filter(p => p.lat && p.lng).map(p => [p.lat, p.lng]);
+            
+            if (latLngs.length > 1) {
+                trackPolyline = L.polyline(latLngs, {
+                    color: '#00ff88',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round'
+                }).addTo(map);
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function updateAccuracyDisplay(accuracy) {
+            const accuracyElement = document.getElementById('accuracyInfo');
+            let accuracyClass = 'accuracy-low';
+            
+            if (accuracy < 10) accuracyClass = 'accuracy-high';
+            else if (accuracy < 25) accuracyClass = 'accuracy-medium';
+            
+            accuracyElement.innerHTML = `<span class="${accuracyClass}">${Math.round(accuracy)}m</span>`;
+        }
+
+        function updateDisplay() {
+            document.getElementById('pointCount').textContent = points.length;
+            document.getElementById('distance').textContent = totalDistance.toFixed(1);
+            document.getElementById('stepCount').textContent = stepCount;
+        }
+
+        function startDurationTimer() {
+            durationInterval = setInterval(() => {
+                if (startTime) {
+                    const duration = Math.round((new Date() - startTime) / 1000);
+                    document.getElementById('duration').textContent = duration;
+                }
+            }, 1000);
+        }
+
+        function stopDurationTimer() {
+            if (durationInterval) clearInterval(durationInterval);
+        }
+
+        // DOWNLOAD SYSTEM
+        function showDownloadOptions() {
+            if (points.length === 0) {
+                alert('❌ Belum ada data tracking!');
+                return;
+            }
+            document.getElementById('downloadOptions').classList.remove('hidden');
+        }
+
+        function hideDownloadOptions() {
+            document.getElementById('downloadOptions').classList.add('hidden');
+        }
+
+        function downloadData(format) {
+            if (points.length === 0) {
+                alert('❌ Tidak ada data untuk didownload!');
+                return;
+            }
+
+            let data, filename, mimeType;
+
+            const metadata = {
+                created: new Date().toISOString(),
+                total_points: points.length,
+                total_distance: totalDistance,
+                duration: Math.round((new Date() - startTime) / 1000),
+                mode: currentMode,
+                steps: stepCount,
+                start_position: startPosition
+            };
+
+            switch(format) {
+                case 'json':
+                    data = JSON.stringify({ metadata, track: points }, null, 2);
+                    filename = `track_${new Date().getTime()}.json`;
+                    mimeType = 'application/json';
+                    break;
+
+                case 'gpx':
+                    data = toGPXFormat(points, metadata);
+                    filename = `track_${new Date().getTime()}.gpx`;
+                    mimeType = 'application/gpx+xml';
+                    break;
+
+                case 'kml':
+                    data = toKMLFormat(points, metadata);
+                    filename = `track_${new Date().getTime()}.kml`;
+                    mimeType = 'application/vnd.google-earth.kml+xml';
+                    break;
+
+                case 'csv':
+                    data = toCSVFormat(points, metadata);
+                    filename = `track_${new Date().getTime()}.csv`;
+                    mimeType = 'text/csv';
+                    break;
+            }
+
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            hideDownloadOptions();
+            alert(`✅ Data berhasil didownload!\nFormat: ${format.toUpperCase()}\nTitik: ${points.length}`);
+        }
+
+        function toGPXFormat(points, metadata) {
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPS Mapping Tool">
+    <metadata>
+        <name>Track ${new Date().toLocaleString()}</name>
+        <desc>Total points: ${metadata.total_points}, Distance: ${metadata.total_distance}m</desc>
+        <time>${metadata.created}</time>
+    </metadata>
+    <trk>
+        <name>GPS Track</name>
+        <trkseg>`;
+
+            points.forEach(point => {
+                if (point.lat && point.lng) {
+                    gpx += `
+            <trkpt lat="${point.lat}" lon="${point.lng}">
+                <time>${point.timestamp}</time>
+                <desc>Type: ${point.type}, Mode: ${point.mode}</desc>
+            </trkpt>`;
+                }
+            });
+
+            gpx += `
+        </trkseg>
+    </trk>
+</gpx>`;
+            return gpx;
+        }
+
+        function toKMLFormat(points, metadata) {
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>Track ${new Date().toLocaleString()}</name>
+        <description>GPS Mapping Tool - Points: ${metadata.total_points}</description>
+        <Style id="trackStyle">
+            <LineStyle>
+                <color>ff00ff88</color>
+                <width>4</width>
+            </LineStyle>
+        </Style>
+        <Placemark>
+            <name>Tracking Path</name>
+            <styleUrl>#trackStyle</styleUrl>
+            <LineString>
+                <coordinates>`;
+
+            points.forEach(point => {
+                if (point.lat && point.lng) {
+                    kml += `
+                    ${point.lng},${point.lat},0 `;
+                }
+            });
+
+            kml += `
+                </coordinates>
+            </LineString>
+        </Placemark>
+    </Document>
+</kml>`;
+            return kml;
+        }
+
+        function toCSVFormat(points, metadata) {
+            let csv = 'Latitude,Longitude,Type,Mode,Timestamp,Distance\n';
+            
+            points.forEach(point => {
+                if (point.lat && point.lng) {
+                    csv += `${point.lat},${point.lng},${point.type},${point.mode},${point.timestamp},${point.distance || 0}\n`;
+                }
+            });
+            
+            return csv;
+        }
+
+        function handleGPSError(error) {
+            console.error('GPS Error:', error);
+            let message = 'GPS Error';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Izin GPS ditolak';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'GPS tidak tersedia';
+                    break;
+                case error.TIMEOUT:
+                    message = 'GPS timeout';
+                    break;
+            }
+            
+            document.getElementById('accuracyInfo').innerHTML = `<span class="accuracy-low">${message}</span>`;
+        }
+
+        // Initialize
+        window.addEventListener('load', initMap);
+        
+        console.log('🚀 GPS MAPPING TOOL LOADED!');
+        console.log('✅ Outdoor GPS Tracking (Primary)');
+        console.log('✅ Manual Mode Switch');
+        console.log('✅ No Auto-Switch during GPS stabilization');
+        console.log('✅ 4 Format Download');
+    </script>
+</body>
+</html>
