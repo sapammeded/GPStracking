@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Path Tracker - Real Functional</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .logo h1 {
+            font-size: 1.8rem;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            font-size: 1rem;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            height: 75vh;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .section {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .section h3 {
+            color: #2d3748;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status-panel {
+            background: #ebf8ff;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .status-active {
+            background: #48bb78;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-paused {
+            background: #ed8936;
+        }
+        
+        .status-stopped {
+            background: #e53e3e;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .history-list {
+            max-height: 150px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        
+        .history-item {
+            padding: 8px;
+            margin-bottom: 6px;
+            background: #f7fafc;
+            border-radius: 4px;
+            border-left: 3px solid #4299e1;
+            font-size: 0.8rem;
+        }
+        
+        .photo-section {
+            display: none;
+        }
+        
+        .photo-preview {
+            width: 100%;
+            height: 120px;
+            border: 2px dashed #cbd5e0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f7fafc;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        
+        .photo-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+        
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .debug-info {
+            background: #fff5f5;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.8rem;
+            color: #718096;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .control-panel {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>🗺️ GPS Path Tracker</h1>
+                <p class="subtitle">Real Functional - Indoor & Outdoor Tracking</p>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="control-panel">
+                <!-- Tracking Control -->
+                <div class="section">
+                    <h3>Kontrol Tracking</h3>
+                    <div class="controls-grid">
+                        <button id="startBtn" class="btn-primary">
+                            <span>▶️</span> Start
+                        </button>
+                        <button id="pauseBtn" class="btn-warning" disabled>
+                            <span>⏸️</span> Pause
+                        </button>
+                        <button id="photoBtn" class="btn-success" disabled>
+                            <span>📸</span> Foto
+                        </button>
+                        <button id="stopBtn" class="btn-danger" disabled>
+                            <span>⏹️</span> Stop
+                        </button>
+                    </div>
+                    
+                    <div class="status-panel">
+                        <div class="status-item">
+                            <span>Status:</span>
+                            <span>
+                                <span class="status-indicator status-stopped" id="statusIndicator"></span>
+                                <span id="statusText">Ready</span>
+                            </span>
+                        </div>
+                        <div class="status-item">
+                            <span>Jarak:</span>
+                            <span id="distance">0 meter</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Durasi:</span>
+                            <span id="duration">00:00:00</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Titik:</span>
+                            <span id="pointCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Photo Section -->
+                <div class="section photo-section" id="photoSection">
+                    <h3>Ambil Foto</h3>
+                    <div class="photo-preview" id="photoPreview">
+                        <div style="text-align: center; color: #a0aec0;">
+                            <div style="font-size: 1.5rem;">📷</div>
+                            <div>Ambil foto untuk titik ini</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <textarea id="photoNotes" placeholder="Tambahkan catatan..." rows="2"></textarea>
+                    </div>
+                    <div class="controls-grid">
+                        <button id="savePhotoBtn" class="btn-success">
+                            <span>💾</span> Simpan
+                        </button>
+                        <button id="cancelPhotoBtn" class="btn-danger">
+                            <span>❌</span> Batal
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- History -->
+                <div class="section">
+                    <h3>Riwayat</h3>
+                    <div class="history-list" id="historyList">
+                        <!-- History items will appear here -->
+                    </div>
+                </div>
+                
+                <!-- Export -->
+                <div class="section">
+                    <h3>Export Data</h3>
+                    <div class="controls-grid">
+                        <button id="exportJson" class="btn-primary">
+                            <span>📄</span> JSON
+                        </button>
+                        <button id="exportGpx" class="btn-primary">
+                            <span>🗺️</span> GPX
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Debug Info -->
+                <div class="debug-info" id="debugInfo">
+                    Klik "Start" untuk memulai tracking GPS
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // REAL FUNCTIONAL GPS TRACKER
+        class RealGPSTracker {
+            constructor() {
+                this.map = null;
+                this.path = [];
+                this.history = [];
+                this.isTracking = false;
+                this.isPaused = false;
+                this.watchId = null;
+                this.startTime = null;
+                this.timerInterval = null;
+                this.totalDistance = 0;
+                this.pathPolyline = null;
+                this.currentPhoto = null;
+                
+                this.init();
+            }
+            
+            init() {
+                this.initMap();
+                this.initEventListeners();
+                this.updateUI();
+                this.updateDebugInfo('Aplikasi siap. Klik "Start" untuk mulai tracking.');
+            }
+            
+            initMap() {
+                // Initialize map with default view
+                this.map = L.map('map').setView([-6.2088, 106.8456], 13);
+                
+                // Add tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(this.map);
+                
+                // Initialize path polyline
+                this.pathPolyline = L.polyline([], {
+                    color: '#4299e1',
+                    weight: 5,
+                    opacity: 0.7
+                }).addTo(this.map);
+                
+                // Try to get user location
+                this.getUserLocation();
+            }
+            
+            getUserLocation() {
+                if (navigator.geolocation) {
+                    this.updateDebugInfo('Mencoba mendapatkan lokasi...');
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const userPos = [
+                                position.coords.latitude,
+                                position.coords.longitude
+                            ];
+                            this.map.setView(userPos, 16);
+                            this.updateDebugInfo('Lokasi berhasil didapatkan. Siap tracking.');
+                        },
+                        (error) => {
+                            this.handleLocationError(error);
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    this.updateDebugInfo('❌ Browser tidak mendukung geolocation');
+                }
+            }
+            
+            handleLocationError(error) {
+                let errorMessage = '❌ Gagal mendapatkan lokasi: ';
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage += 'Izin akses lokasi ditolak. Izinkan di pengaturan browser.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage += 'Timeout mendapatkan lokasi. Coba lagi.';
+                        break;
+                    default:
+                        errorMessage += 'Error tidak diketahui.';
+                }
+                
+                this.updateDebugInfo(errorMessage);
+            }
+            
+            initEventListeners() {
+                // Main controls
+                document.getElementById('startBtn').addEventListener('click', () => this.startTracking());
+                document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
+                document.getElementById('photoBtn').addEventListener('click', () => this.takePhoto());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stopTracking());
+                
+                // Photo controls
+                document.getElementById('savePhotoBtn').addEventListener('click', () => this.savePhoto());
+                document.getElementById('cancelPhotoBtn').addEventListener('click', () => this.cancelPhoto());
+                
+                // Export controls
+                document.getElementById('exportJson').addEventListener('click', () => this.exportJSON());
+                document.getElementById('exportGpx').addEventListener('click', () => this.exportGPX());
+                
+                // Camera input
+                document.getElementById('cameraInput').addEventListener('change', (e) => this.handlePhotoCapture(e));
+            }
+            
+            startTracking() {
+                if (!navigator.geolocation) {
+                    this.updateDebugInfo('❌ Browser tidak mendukung GPS');
+                    return;
+                }
+                
+                this.updateDebugInfo('🔄 Memulai tracking GPS...');
+                
+                // Reset data
+                this.path = [];
+                this.history = [];
+                this.totalDistance = 0;
+                this.startTime = new Date();
+                
+                // Clear previous polyline
+                this.pathPolyline.setLatLngs([]);
+                
+                // Start timer
+                this.updateTimer();
+                this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+                
+                // Start GPS tracking
+                this.watchId = navigator.geolocation.watchPosition(
+                    (position) => this.handlePositionUpdate(position),
+                    (error) => this.handleTrackingError(error),
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+                
+                this.isTracking = true;
+                this.isPaused = false;
+                this.updateUI();
+                this.addHistory('🚀 Tracking dimulai');
+                
+                this.updateDebugInfo('✅ Tracking aktif. GPS sedang merekam...');
+            }
+            
+            handlePositionUpdate(position) {
+                const newPoint = {
+                    type: 'gps',
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    timestamp: new Date(),
+                    elevation: position.coords.altitude || 0
+                };
+                
+                // Calculate distance from previous point
+                if (this.path.length > 0) {
+                    const lastPoint = this.path[this.path.length - 1];
+                    const distance = this.calculateDistance(
+                        lastPoint.lat, lastPoint.lng,
+                        newPoint.lat, newPoint.lng
+                    );
+                    this.totalDistance += distance;
+                }
+                
+                this.path.push(newPoint);
+                this.updatePathPolyline();
+                this.updateDisplay();
+                
+                // Update map view to follow user
+                this.map.setView([newPoint.lat, newPoint.lng], this.map.getZoom());
+                
+                // Update debug info occasionally
+                if (this.path.length % 10 === 0) {
+                    this.updateDebugInfo(`✅ Tracking: ${this.path.length} titik, ${this.totalDistance.toFixed(1)} meter`);
+                }
+            }
+            
+            handleTrackingError(error) {
+                console.error('GPS Tracking Error:', error);
+                
+                let errorMessage = '❌ GPS Error: ';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage += 'Izin akses lokasi dicabut';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage += 'Sinyal GPS hilang. Switch ke indoor mode?';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage += 'GPS timeout';
+                        break;
+                    default:
+                        errorMessage += 'Error tidak diketahui';
+                }
+                
+                this.updateDebugInfo(errorMessage);
+                
+                // Auto-pause if we lose GPS signal
+                if (this.isTracking && !this.isPaused) {
+                    this.pauseTracking();
+                }
+            }
+            
+            togglePause() {
+                if (this.isPaused) {
+                    this.resumeTracking();
+                } else {
+                    this.pauseTracking();
+                }
+            }
+            
+            pauseTracking() {
+                if (this.watchId) {
+                    navigator.geolocation.clearWatch(this.watchId);
+                    this.watchId = null;
+                }
+                
+                this.isPaused = true;
+                this.updateUI();
+                this.addHistory('⏸️ Tracking dijeda');
+                this.updateDebugInfo('⏸️ Tracking dijeda. Klik "Pause" lagi untuk lanjutkan.');
+            }
+            
+            resumeTracking() {
+                if (!this.isTracking || !this.isPaused) return;
+                
+                this.watchId = navigator.geolocation.watchPosition(
+                    (position) => this.handlePositionUpdate(position),
+                    (error) => this.handleTrackingError(error),
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+                
+                this.isPaused = false;
+                this.updateUI();
+                this.addHistory('▶️ Tracking dilanjutkan');
+                this.updateDebugInfo('✅ Tracking dilanjutkan');
+            }
+            
+            takePhoto() {
+                document.getElementById('cameraInput').click();
+            }
+            
+            handlePhotoCapture(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.currentPhoto = e.target.result;
+                        document.getElementById('photoPreview').innerHTML = `<img src="${this.currentPhoto}" alt="Preview">`;
+                        this.showPhotoSection();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+            
+            showPhotoSection() {
+                document.getElementById('photoSection').style.display = 'block';
+                document.getElementById('photoNotes').value = '';
+            }
+            
+            hidePhotoSection() {
+                document.getElementById('photoSection').style.display = 'none';
+                this.currentPhoto = null;
+                document.getElementById('cameraInput').value = '';
+            }
+            
+            savePhoto() {
+                const notes = document.getElementById('photoNotes').value;
+                
+                const photoPoint = {
+                    type: 'photo',
+                    timestamp: new Date(),
+                    photo: this.currentPhoto,
+                    notes: notes,
+                    location: this.path.length > 0 ? this.path[this.path.length - 1] : null
+                };
+                
+                this.addHistory(`📸 Foto: ${notes || 'Tidak ada catatan'}`);
+                this.hidePhotoSection();
+                this.updateDebugInfo('✅ Foto disimpan');
+            }
+            
+            cancelPhoto() {
+                this.hidePhotoSection();
+                this.updateDebugInfo('❌ Foto dibatalkan');
+            }
+            
+            stopTracking() {
+                // Stop GPS tracking
+                if (this.watchId) {
+                    navigator.geolocation.clearWatch(this.watchId);
+                    this.watchId = null;
+                }
+                
+                // Stop timer
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+                
+                this.isTracking = false;
+                this.isPaused = false;
+                this.updateUI();
+                
+                this.addHistory('⏹️ Tracking dihentikan');
+                
+                const summary = `Tracking selesai: ${this.path.length} titik, ${this.totalDistance.toFixed(1)} meter, ${document.getElementById('duration').textContent}`;
+                this.updateDebugInfo(summary);
+                
+                // Save data
+                this.saveData();
+            }
+            
+            addHistory(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const historyItem = {
+                    message: message,
+                    timestamp: timestamp
+                };
+                
+                this.history.unshift(historyItem);
+                this.updateHistoryDisplay();
+            }
+            
+            updateHistoryDisplay() {
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
+                
+                this.history.slice(0, 8).forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.textContent = `${item.timestamp} - ${item.message}`;
+                    historyList.appendChild(div);
+                });
+                
+                document.getElementById('pointCount').textContent = this.history.length;
+            }
+            
+            updatePathPolyline() {
+                const latLngs = this.path.map(point => [point.lat, point.lng]);
+                this.pathPolyline.setLatLngs(latLngs);
+            }
+            
+            updateDisplay() {
+                document.getElementById('distance').textContent = 
+                    this.totalDistance < 1000 ? 
+                    `${this.totalDistance.toFixed(1)} meter` : 
+                    `${(this.totalDistance/1000).toFixed(2)} km`;
+            }
+            
+            updateTimer() {
+                if (!this.startTime) return;
+                
+                const now = new Date();
+                const diff = now - this.startTime;
+                
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                document.getElementById('duration').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            updateUI() {
+                const startBtn = document.getElementById('startBtn');
+                const pauseBtn = document.getElementById('pauseBtn');
+                const photoBtn = document.getElementById('photoBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                const statusIndicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                
+                startBtn.disabled = this.isTracking;
+                pauseBtn.disabled = !this.isTracking;
+                photoBtn.disabled = !this.isTracking;
+                stopBtn.disabled = !this.isTracking;
+                
+                if (this.isTracking) {
+                    if (this.isPaused) {
+                        statusIndicator.className = 'status-indicator status-paused';
+                        statusText.textContent = 'Paused';
+                        pauseBtn.innerHTML = '<span>▶️</span> Resume';
+                    } else {
+                        statusIndicator.className = 'status-indicator status-active';
+                        statusText.textContent = 'Tracking';
+                        pauseBtn.innerHTML = '<span>⏸️</span> Pause';
+                    }
+                } else {
+                    statusIndicator.className = 'status-indicator status-stopped';
+                    statusText.textContent = 'Stopped';
+                }
+            }
+            
+            updateDebugInfo(message) {
+                document.getElementById('debugInfo').textContent = message;
+            }
+            
+            calculateDistance(lat1, lng1, lat2, lng2) {
+                const R = 6371000; // Earth radius in meters
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLng = (lng2 - lng1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLng/2) * Math.sin(dLng/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+            
+            saveData() {
+                const data = {
+                    metadata: {
+                        name: `GPS_Tracking_${new Date().toISOString().split('T')[0]}`,
+                        created: new Date().toISOString(),
+                        totalDistance: this.totalDistance,
+                        duration: document.getElementById('duration').textContent,
+                        totalPoints: this.path.length
+                    },
+                    path: this.path,
+                    history: this.history
+                };
+                
+                localStorage.setItem('gpsTrackingData', JSON.stringify(data));
+                console.log('Data saved to localStorage');
+            }
+            
+            exportJSON() {
+                if (this.path.length === 0) {
+                    this.updateDebugInfo('❌ Tidak ada data untuk di-export');
+                    return;
+                }
+                
+                const data = {
+                    metadata: {
+                        name: `GPS_Tracking_${new Date().toISOString().split('T')[0]}`,
+                        created: new Date().toISOString(),
+                        totalDistance: this.totalDistance,
+                        duration: document.getElementById('duration').textContent,
+                        totalPoints: this.path.length
+                    },
+                    path: this.path,
+                    history: this.history
+                };
+                
+                this.downloadFile(JSON.stringify(data, null, 2), 'application/json', 'gps_tracking.json');
+                this.updateDebugInfo('✅ Data di-export sebagai JSON');
+            }
+            
+            exportGPX() {
+                if (this.path.length === 0) {
+                    this.updateDebugInfo('❌ Tidak ada data untuk di-export');
+                    return;
+                }
+                
+                let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPS Path Tracker">
+    <metadata>
+        <name>GPS Tracking ${new Date().toLocaleDateString()}</name>
+        <time>${new Date().toISOString()}</time>
+    </metadata>
+    <trk>
+        <name>Tracking Path</name>
+        <trkseg>`;
+                
+                this.path.forEach(point => {
+                    gpx += `
+            <trkpt lat="${point.lat}" lon="${point.lng}">
+                <ele>${point.elevation}</ele>
+                <time>${point.timestamp.toISOString()}</time>
+            </trkpt>`;
+                });
+                
+                gpx += `
+        </trkseg>
+    </trk>
+</gpx>`;
+                
+                this.downloadFile(gpx, 'application/gpx+xml', 'gps_tracking.gpx');
+                this.updateDebugInfo('✅ Data di-export sebagai GPX');
+            }
+            
+            downloadFile(content, mimeType, filename) {
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new RealGPSTracker();
+        });
+    </script>
+</body>
+</html>
