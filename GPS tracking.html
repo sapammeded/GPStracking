@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto GPS Tracker dengan Checkpoints</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .logo h1 {
+            font-size: 2rem;
+            color: #4a5568;
+            font-weight: 700;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            height: 75vh;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .section h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        button {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(237, 137, 54, 0.4);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ecc94b, #d69e2e);
+            color: white;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(236, 201, 75, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+        }
+        
+        .btn-info:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(66, 153, 225, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .checkpoint-form {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            border: 2px dashed #cbd5e0;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .checkpoint-form.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .photo-preview {
+            width: 100%;
+            height: 150px;
+            border: 2px dashed #cbd5e0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f7fafc;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        
+        .photo-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-preview .placeholder {
+            color: #a0aec0;
+            text-align: center;
+        }
+        
+        .path-info {
+            background: #edf2f7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .info-value {
+            color: #2d3748;
+            font-weight: 500;
+        }
+        
+        .checkpoint-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .checkpoint-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+            display: flex;
+            gap: 12px;
+        }
+        
+        .checkpoint-item img {
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        
+        .checkpoint-details {
+            flex: 1;
+        }
+        
+        .checkpoint-title {
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+        
+        .checkpoint-desc {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .checkpoint-meta {
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-recording {
+            background: #48bb78;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-paused {
+            background: #ed8936;
+        }
+        
+        .status-stopped {
+            background: #e53e3e;
+        }
+        
+        .export-section {
+            background: linear-gradient(135deg, #e6fffa, #ebf8ff);
+            border: 2px solid #4fd1c7;
+        }
+        
+        .export-buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .control-panel {
+                height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span>🛰️</span>
+                <h1>Auto GPS Tracker + Checkpoints</h1>
+            </div>
+            <p>Tracking otomatis dengan pause untuk foto & notes</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="control-panel">
+                <div class="section">
+                    <h3>🎯 Kontrol Tracking</h3>
+                    <div class="controls-grid">
+                        <button id="startBtn" class="btn-primary">
+                            <span>▶️</span> Start Auto Track
+                        </button>
+                        <button id="pauseBtn" class="btn-warning" disabled>
+                            <span>⏸️</span> Pause
+                        </button>
+                        <button id="resumeBtn" class="btn-secondary" disabled>
+                            <span>▶️</span> Resume
+                        </button>
+                        <button id="stopBtn" class="btn-danger" disabled>
+                            <span>⏹️</span> Stop
+                        </button>
+                    </div>
+                    
+                    <div class="path-info">
+                        <div class="info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value">
+                                <span class="status-indicator status-stopped" id="statusIndicator"></span>
+                                <span id="statusText">Stopped</span>
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Jarak Tempuh:</span>
+                            <span class="info-value" id="totalDistance">0 meter</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Durasi:</span>
+                            <span class="info-value" id="duration">00:00:00</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Titik Checkpoint:</span>
+                            <span class="info-value" id="checkpointCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>📸 Checkpoint Saat Pause</h3>
+                    <div class="checkpoint-form" id="checkpointForm">
+                        <div class="form-group">
+                            <label for="checkpointName">Nama Titik:</label>
+                            <input type="text" id="checkpointName" placeholder="Contoh: Pintu Masuk Gedung A">
+                        </div>
+                        <div class="form-group">
+                            <label for="checkpointDesc">Deskripsi:</label>
+                            <textarea id="checkpointDesc" placeholder="Tambahkan deskripsi lokasi..."></textarea>
+                        </div>
+                        
+                        <div class="photo-preview" id="photoPreview">
+                            <div class="placeholder">
+                                <div>📷</div>
+                                <div>Ambil foto untuk checkpoint ini</div>
+                            </div>
+                        </div>
+                        
+                        <div class="controls-grid">
+                            <button id="takePhotoBtn" class="btn-primary">
+                                <span>📸</span> Ambil Foto
+                            </button>
+                            <button id="saveCheckpointBtn" class="btn-secondary">
+                                <span>💾</span> Simpan Checkpoint
+                            </button>
+                        </div>
+                    </div>
+                    <p id="checkpointHint" style="color: #718096; font-size: 0.9rem; text-align: center;">
+                        Pause tracking terlebih dahulu untuk membuat checkpoint
+                    </p>
+                </div>
+                
+                <div class="section">
+                    <h3>📋 Daftar Checkpoints</h3>
+                    <div class="checkpoint-list" id="checkpointList">
+                        <!-- Daftar checkpoint akan muncul di sini -->
+                    </div>
+                </div>
+
+                <!-- SECTION BARU UNTUK DOWNLOAD -->
+                <div class="section export-section">
+                    <h3>💾 Download Hasil Tracking</h3>
+                    <div class="export-buttons">
+                        <button id="downloadJsonBtn" class="btn-info">
+                            <span>📄</span> Download JSON
+                        </button>
+                        <button id="downloadGpxBtn" class="btn-info">
+                            <span>🗺️</span> Download GPX
+                        </button>
+                        <button id="downloadKmlBtn" class="btn-info">
+                            <span>🌍</span> Download KML
+                        </button>
+                        <button id="downloadCsvBtn" class="btn-info">
+                            <span>📊</span> Download CSV
+                        </button>
+                    </div>
+                    <div class="path-info" style="margin-top: 15px;">
+                        <div class="info-item">
+                            <span class="info-label">File berisi:</span>
+                            <span class="info-value">Koordinat + Foto + Checkpoints</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Variabel global
+        let map = null;
+        let currentPath = [];
+        let checkpoints = [];
+        let isTracking = false;
+        let isPaused = false;
+        let watchId = null;
+        let startTime = null;
+        let timerInterval = null;
+        let totalDistance = 0;
+        let pathPolyline = null;
+        let currentPhoto = null;
+        
+        // Elemen DOM
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const totalDistanceEl = document.getElementById('totalDistance');
+        const durationEl = document.getElementById('duration');
+        const checkpointCountEl = document.getElementById('checkpointCount');
+        const checkpointForm = document.getElementById('checkpointForm');
+        const checkpointHint = document.getElementById('checkpointHint');
+        const takePhotoBtn = document.getElementById('takePhotoBtn');
+        const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
+        const cameraInput = document.getElementById('cameraInput');
+        const photoPreview = document.getElementById('photoPreview');
+        const checkpointList = document.getElementById('checkpointList');
+        const checkpointName = document.getElementById('checkpointName');
+        const checkpointDesc = document.getElementById('checkpointDesc');
+        
+        // Tombol download baru
+        const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+        const downloadGpxBtn = document.getElementById('downloadGpxBtn');
+        const downloadKmlBtn = document.getElementById('downloadKmlBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+
+        // Inisialisasi peta
+        function initMap() {
+            map = L.map('map').setView([-6.2088, 106.8456], 18);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            
+            pathPolyline = L.polyline([], {
+                color: '#4299e1',
+                weight: 6,
+                opacity: 0.8,
+                lineJoin: 'round'
+            }).addTo(map);
+            
+            // Coba dapatkan lokasi user
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userPos = [
+                            position.coords.latitude,
+                            position.coords.longitude
+                        ];
+                        map.setView(userPos, 18);
+                    },
+                    () => {
+                        console.log('GPS tidak tersedia');
+                    }
+                );
+            }
+        }
+
+        // Start auto tracking
+        function startTracking() {
+            if (!navigator.geolocation) {
+                alert('Browser tidak mendukung geolocation');
+                return;
+            }
+
+            currentPath = [];
+            checkpoints = [];
+            totalDistance = 0;
+            startTime = new Date();
+            
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 1000);
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const newPoint = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: new Date(),
+                        elevation: position.coords.altitude || 0
+                    };
+
+                    // Hitung jarak dari titik sebelumnya
+                    if (currentPath.length > 0) {
+                        const lastPoint = currentPath[currentPath.length - 1];
+                        const distance = calculateDistance(
+                            lastPoint.lat, lastPoint.lng,
+                            newPoint.lat, newPoint.lng
+                        );
+                        totalDistance += distance;
+                    }
+
+                    currentPath.push(newPoint);
+                    updatePathPolyline();
+                    updateUI();
+
+                    // Update map view
+                    map.setView([newPoint.lat, newPoint.lng], map.getZoom());
+                },
+                (error) => {
+                    console.error('GPS Error:', error);
+                    alert('Error mendapatkan lokasi: ' + error.message);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+
+            isTracking = true;
+            isPaused = false;
+            updateButtonStates();
+            updateStatus('Recording', 'status-recording');
+        }
+
+        // Pause tracking
+        function pauseTracking() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            isPaused = true;
+            updateButtonStates();
+            updateStatus('Paused', 'status-paused');
+            
+            // Tampilkan form checkpoint
+            checkpointForm.classList.add('active');
+            checkpointHint.style.display = 'none';
+        }
+
+        // Resume tracking
+        function resumeTracking() {
+            if (!isTracking || !isPaused) return;
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const newPoint = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: new Date(),
+                        elevation: position.coords.altitude || 0
+                    };
+
+                    if (currentPath.length > 0) {
+                        const lastPoint = currentPath[currentPath.length - 1];
+                        const distance = calculateDistance(
+                            lastPoint.lat, lastPoint.lng,
+                            newPoint.lat, newPoint.lng
+                        );
+                        totalDistance += distance;
+                    }
+
+                    currentPath.push(newPoint);
+                    updatePathPolyline();
+                    updateUI();
+                },
+                (error) => {
+                    console.error('GPS Error:', error);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+
+            isPaused = false;
+            updateButtonStates();
+            updateStatus('Recording', 'status-recording');
+            
+            // Sembunyikan form checkpoint
+            checkpointForm.classList.remove('active');
+            checkpointHint.style.display = 'block';
+            clearCheckpointForm();
+        }
+
+        // Stop tracking
+        function stopTracking() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            isTracking = false;
+            isPaused = false;
+            updateButtonStates();
+            updateStatus('Stopped', 'status-stopped');
+            
+            // Sembunyikan form checkpoint
+            checkpointForm.classList.remove('active');
+            checkpointHint.style.display = 'block';
+            
+            // Simpan data final
+            saveFinalData();
+        }
+
+        // Simpan checkpoint
+        function saveCheckpoint() {
+            if (currentPath.length === 0) return;
+
+            const currentPoint = currentPath[currentPath.length - 1];
+            const checkpoint = {
+                id: Date.now(),
+                name: checkpointName.value || `Checkpoint ${checkpoints.length + 1}`,
+                description: checkpointDesc.value,
+                lat: currentPoint.lat,
+                lng: currentPoint.lng,
+                photo: currentPhoto,
+                timestamp: new Date(),
+                elevation: currentPoint.elevation
+            };
+
+            checkpoints.push(checkpoint);
+            addCheckpointToMap(checkpoint);
+            updateCheckpointList();
+            clearCheckpointForm();
+            
+            alert(`Checkpoint "${checkpoint.name}" disimpan!`);
+        }
+
+        // Tambah checkpoint ke peta
+        function addCheckpointToMap(checkpoint) {
+            const marker = L.marker([checkpoint.lat, checkpoint.lng], {
+                icon: L.divIcon({
+                    className: 'checkpoint-marker',
+                    html: '📍',
+                    iconSize: [30, 30]
+                })
+            }).addTo(map);
+            
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    <h4>${checkpoint.name}</h4>
+                    <p>${checkpoint.description || 'Tidak ada deskripsi'}</p>
+                    ${checkpoint.photo ? `<img src="${checkpoint.photo}" style="max-width: 100%; border-radius: 5px; margin: 10px 0;">` : ''}
+                    <small>${checkpoint.timestamp.toLocaleString()}</small>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+        }
+
+        // Update polyline di peta
+        function updatePathPolyline() {
+            const latLngs = currentPath.map(point => [point.lat, point.lng]);
+            pathPolyline.setLatLngs(latLngs);
+        }
+
+        // Update UI
+        function updateUI() {
+            totalDistanceEl.textContent = totalDistance < 1000 ? 
+                `${totalDistance.toFixed(1)} meter` : 
+                `${(totalDistance/1000).toFixed(2)} km`;
+                
+            checkpointCountEl.textContent = checkpoints.length;
+        }
+
+        // Update timer
+        function updateTimer() {
+            if (!startTime) return;
+            
+            const now = new Date();
+            const diff = now - startTime;
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            durationEl.textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Update status
+        function updateStatus(text, statusClass) {
+            statusText.textContent = text;
+            statusIndicator.className = 'status-indicator ' + statusClass;
+        }
+
+        // Update button states
+        function updateButtonStates() {
+            startBtn.disabled = isTracking;
+            pauseBtn.disabled = !isTracking || isPaused;
+            resumeBtn.disabled = !isTracking || !isPaused;
+            stopBtn.disabled = !isTracking;
+        }
+
+        // Clear checkpoint form
+        function clearCheckpointForm() {
+            checkpointName.value = '';
+            checkpointDesc.value = '';
+            currentPhoto = null;
+            photoPreview.innerHTML = `
+                <div class="placeholder">
+                    <div>📷</div>
+                    <div>Ambil foto untuk checkpoint ini</div>
+                </div>
+            `;
+        }
+
+        // Update checkpoint list
+        function updateCheckpointList() {
+            checkpointList.innerHTML = '';
+            
+            checkpoints.forEach(checkpoint => {
+                const item = document.createElement('div');
+                item.className = 'checkpoint-item';
+                
+                item.innerHTML = `
+                    ${checkpoint.photo ? `<img src="${checkpoint.photo}" alt="${checkpoint.name}">` : '<div style="width:60px;height:60px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;border-radius:6px;">📷</div>'}
+                    <div class="checkpoint-details">
+                        <div class="checkpoint-title">${checkpoint.name}</div>
+                        <div class="checkpoint-desc">${checkpoint.description || 'Tidak ada deskripsi'}</div>
+                        <div class="checkpoint-meta">
+                            ${checkpoint.timestamp.toLocaleTimeString()} • 
+                            Elevasi: ${checkpoint.elevation ? checkpoint.elevation.toFixed(1) + 'm' : 'N/A'}
+                        </div>
+                    </div>
+                `;
+                
+                checkpointList.appendChild(item);
+            });
+        }
+
+        // Simpan data final
+        function saveFinalData() {
+            const data = {
+                pathName: `Tracking_${new Date().toISOString().split('T')[0]}`,
+                created: new Date().toISOString(),
+                totalDistance: totalDistance,
+                duration: durationEl.textContent,
+                points: currentPath,
+                checkpoints: checkpoints
+            };
+            
+            // Simpan ke localStorage
+            localStorage.setItem('gpsTrackingData', JSON.stringify(data));
+            console.log('Data disimpan:', data);
+            alert(`Tracking selesai!\nJarak: ${totalDistanceEl.textContent}\nDurasi: ${durationEl.textContent}\nCheckpoints: ${checkpoints.length}`);
+        }
+
+        // DOWNLOAD FUNCTIONS - YANG BARU
+        function downloadJSON() {
+            if (currentPath.length === 0) {
+                alert('Belum ada data tracking!');
+                return;
+            }
+
+            const data = {
+                metadata: {
+                    name: `GPS_Tracking_${new Date().toISOString().split('T')[0]}`,
+                    created: new Date().toISOString(),
+                    totalDistance: totalDistance,
+                    duration: durationEl.textContent,
+                    totalPoints: currentPath.length,
+                    totalCheckpoints: checkpoints.length
+                },
+                trackPoints: currentPath,
+                checkpoints: checkpoints
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gps_tracking_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadGPX() {
+            if (currentPath.length === 0) {
+                alert('Belum ada data tracking!');
+                return;
+            }
+
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPS Tracker">
+    <metadata>
+        <name>GPS Tracking ${new Date().toLocaleDateString()}</name>
+        <time>${new Date().toISOString()}</time>
+    </metadata>
+    <trk>
+        <name>Tracking Path</name>
+        <trkseg>`;
+
+            currentPath.forEach(point => {
+                gpx += `
+            <trkpt lat="${point.lat}" lon="${point.lng}">
+                <ele>${point.elevation || 0}</ele>
+                <time>${point.timestamp.toISOString()}</time>
+            </trkpt>`;
+            });
+
+            gpx += `
+        </trkseg>
+    </trk>`;
+
+            // Tambahkan waypoints untuk checkpoints
+            checkpoints.forEach((checkpoint, index) => {
+                gpx += `
+    <wpt lat="${checkpoint.lat}" lon="${checkpoint.lng}">
+        <name>${checkpoint.name}</name>
+        <desc>${checkpoint.description || ''}</desc>
+        <ele>${checkpoint.elevation || 0}</ele>
+    </wpt>`;
+            });
+
+            gpx += '\n</gpx>';
+
+            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gps_tracking_${Date.now()}.gpx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadKML() {
+            if (currentPath.length === 0) {
+                alert('Belum ada data tracking!');
+                return;
+            }
+
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>GPS Tracking ${new Date().toLocaleDateString()}</name>
+        <description>Total distance: ${totalDistance.toFixed(1)}m, Duration: ${durationEl.textContent}</description>
+        <Style id="trackStyle">
+            <LineStyle>
+                <color>ff4281e4</color>
+                <width>4</width>
+            </LineStyle>
+        </Style>
+        <Placemark>
+            <name>Tracking Path</name>
+            <styleUrl>#trackStyle</styleUrl>
+            <LineString>
+                <coordinates>`;
+
+            currentPath.forEach(point => {
+                kml += `${point.lng},${point.lat},${point.elevation || 0} `;
+            });
+
+            kml += `</coordinates>
+            </LineString>
+        </Placemark>`;
+
+            // Tambahkan placemarks untuk checkpoints
+            checkpoints.forEach(checkpoint => {
+                kml += `
+        <Placemark>
+            <name>${checkpoint.name}</name>
+            <description>${checkpoint.description || ''}</description>
+            <Point>
+                <coordinates>${checkpoint.lng},${checkpoint.lat},${checkpoint.elevation || 0}</coordinates>
+            </Point>
+        </Placemark>`;
+            });
+
+            kml += '\n</Document>\n</kml>';
+
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gps_tracking_${Date.now()}.kml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadCSV() {
+            if (currentPath.length === 0) {
+                alert('Belum ada data tracking!');
+                return;
+            }
+
+            let csv = 'Latitude,Longitude,Elevation,Timestamp,Accuracy\n';
+            
+            currentPath.forEach(point => {
+                csv += `${point.lat},${point.lng},${point.elevation || 0},"${point.timestamp.toISOString()}",${point.accuracy || 0}\n`;
+            });
+
+            // Tambahkan section untuk checkpoints
+            if (checkpoints.length > 0) {
+                csv += '\nCheckpoints\n';
+                csv += 'Name,Description,Latitude,Longitude,Elevation,Timestamp\n';
+                checkpoints.forEach(checkpoint => {
+                    csv += `"${checkpoint.name}","${checkpoint.description || ''}",${checkpoint.lat},${checkpoint.lng},${checkpoint.elevation || 0},"${checkpoint.timestamp.toISOString()}"\n`;
+                });
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gps_tracking_${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Hitung jarak
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', startTracking);
+        pauseBtn.addEventListener('click', pauseTracking);
+        resumeBtn.addEventListener('click', resumeTracking);
+        stopBtn.addEventListener('click', stopTracking);
+        takePhotoBtn.addEventListener('click', () => cameraInput.click());
+        saveCheckpointBtn.addEventListener('click', saveCheckpoint);
+
+        // Event listeners untuk download buttons
+        downloadJsonBtn.addEventListener('click', downloadJSON);
+        downloadGpxBtn.addEventListener('click', downloadGPX);
+        downloadKmlBtn.addEventListener('click', downloadKML);
+        downloadCsvBtn.addEventListener('click', downloadCSV);
+
+        cameraInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentPhoto = e.target.result;
+                    photoPreview.innerHTML = `<img src="${currentPhoto}" alt="Preview">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Inisialisasi
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            updateButtonStates();
+            updateStatus('Stopped', 'status-stopped');
+        });
+    </script>
+</body>
+</html>
