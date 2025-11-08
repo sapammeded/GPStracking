@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Mapping Tool</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif;
+            background: #000;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.95);
+            padding: 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 2px solid #00ff88;
+        }
+        
+        .btn {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 15px;
+            background: #00ff88;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 70px;
+        }
+        
+        .btn-camera {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .btn-pause {
+            background: #ff9800;
+        }
+        
+        .btn-stop {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .status-panel {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.95);
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            min-width: 250px;
+            border: 2px solid #333;
+        }
+        
+        .history-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.95);
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #333;
+        }
+        
+        .history-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            border-left: 3px solid #00ff88;
+        }
+        
+        .photo-thumbnail {
+            width: 100%;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: #333;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+        }
+        
+        #cameraPreview {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="status-panel">
+        <div><strong>📍 Status:</strong> <span id="trackStatus">READY</span></div>
+        <div><strong>🎯 Akurasi:</strong> <span id="accuracyInfo">-</span></div>
+        <div><strong>📊 Titik:</strong> <span id="pointCount">0</span></div>
+        <div><strong>📏 Jarak:</strong> <span id="distance">0</span>m</div>
+        <div><strong>🕒 Durasi:</strong> <span id="duration">0</span>s</div>
+        <div><strong>📷 Foto:</strong> <span id="photoCount">0</span></div>
+    </div>
+    
+    <div class="history-panel">
+        <h4>📝 Riwayat Pergerakan</h4>
+        <div id="historyList">
+            <div class="history-item">Sistem siap - Klik START untuk mulai tracking</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn" id="startBtn" onclick="startTracking()">▶ START</button>
+        <button class="btn btn-pause hidden" id="pauseBtn" onclick="pauseTracking()">⏸ PAUSE</button>
+        <button class="btn btn-camera" onclick="takePhoto()">📷 FOTO</button>
+        <button class="btn btn-stop hidden" id="stopBtn" onclick="stopTracking()">⏹ STOP</button>
+        <button class="btn" onclick="showDownloadMenu()">💾 DOWNLOAD</button>
+    </div>
+
+    <div class="modal hidden" id="cameraModal">
+        <div class="modal-content">
+            <h3>📷 Ambil Foto Dokumentasi</h3>
+            <video id="cameraPreview" autoplay playsinline></video>
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button class="btn" onclick="capturePhoto()">📸 CAPTURE</button>
+                <button class="btn btn-stop" onclick="closeCamera()">❌ TUTUP</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal hidden" id="downloadModal">
+        <div class="modal-content">
+            <h3>📥 Download Data Tracking</h3>
+            <div style="display: grid; gap: 10px; margin: 15px 0;">
+                <button class="btn" onclick="downloadData('pdf')">📄 PDF Report (Recommended)</button>
+                <button class="btn" onclick="downloadData('json')">📊 JSON Data</button>
+                <button class="btn" onclick="downloadData('gpx')">🗺️ GPX Track</button>
+                <button class="btn" onclick="downloadData('kml')">🌍 KML Google Earth</button>
+            </div>
+            <button class="btn btn-stop" onclick="closeDownloadMenu()">❌ TUTUP</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Global variables
+        let map, currentMarker, trackPolyline;
+        let points = [];
+        let photos = [];
+        let history = [];
+        let isTracking = false;
+        let isPaused = false;
+        let watchId = null;
+        let totalDistance = 0;
+        let startTime = null;
+        let durationInterval = null;
+        let cameraStream = null;
+
+        // Initialize Map
+        function initMap() {
+            map = L.map('map').setView([-6.2088, 106.8456], 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            locateUser();
+            addHistory('Sistem initialized', 'Map ready untuk tracking');
+        }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        map.setView([lat, lng], 18);
+                        
+                        currentMarker = L.marker([lat, lng])
+                            .addTo(map)
+                            .bindPopup('📍 Lokasi Anda')
+                            .openPopup();
+                    },
+                    function(error) {
+                        console.warn('GPS Error:', error);
+                    },
+                    { enableHighAccuracy: true }
+                );
+            }
+        }
+
+        function startTracking() {
+            if (isTracking) return;
+            
+            isTracking = true;
+            isPaused = false;
+            points = [];
+            photos = [];
+            totalDistance = 0;
+            startTime = new Date();
+            
+            document.getElementById('trackStatus').textContent = 'TRACKING';
+            document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('pauseBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+            
+            startDurationTimer();
+            startGPSTracking();
+            
+            addHistory('Tracking dimulai', 'GPS aktif - mulai merekam pergerakan');
+            alert('🚀 TRACKING DIMULAI! Bergeraklah - setiap pergerakan akan direkam.');
+        }
+
+        function pauseTracking() {
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                document.getElementById('trackStatus').textContent = 'PAUSED';
+                document.getElementById('pauseBtn').textContent = '▶ RESUME';
+                addHistory('Tracking dijeda', 'Pause untuk dokumentasi');
+            } else {
+                document.getElementById('trackStatus').textContent = 'TRACKING';
+                document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
+                addHistory('Tracking dilanjutkan', 'Lanjut merekam pergerakan');
+            }
+        }
+
+        function stopTracking() {
+            if (!isTracking) return;
+            
+            isTracking = false;
+            isPaused = false;
+            
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            stopDurationTimer();
+            
+            document.getElementById('trackStatus').textContent = 'SELESAI';
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('pauseBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
+            
+            const duration = Math.round((new Date() - startTime) / 1000);
+            addHistory('Tracking selesai', `${points.length} titik, ${totalDistance.toFixed(1)}m, ${duration}s`);
+            
+            alert(`✅ TRACKING SELESAI!\n${points.length} titik | ${totalDistance.toFixed(1)}m | ${photos.length} foto`);
+        }
+
+        function startGPSTracking() {
+            if (!navigator.geolocation) return;
+            
+            watchId = navigator.geolocation.watchPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    
+                    updateAccuracyDisplay(accuracy);
+                    
+                    if (currentMarker) {
+                        currentMarker.setLatLng([lat, lng]);
+                    }
+                    
+                    if (isTracking && !isPaused) {
+                        const newPoint = { 
+                            lat, lng, 
+                            accuracy,
+                            timestamp: new Date().toISOString(),
+                            time: new Date().toLocaleTimeString()
+                        };
+                        
+                        points.push(newPoint);
+                        updateDisplay();
+                        drawTrackLine();
+                        
+                        // Calculate distance
+                        if (points.length > 1) {
+                            const prevPoint = points[points.length - 2];
+                            const distance = calculateDistance(prevPoint.lat, prevPoint.lng, lat, lng);
+                            totalDistance += distance;
+                            
+                            if (distance > 1) { // Only log significant movements
+                                addHistory('Pergerakan terdeteksi', `Jarak: ${distance.toFixed(1)}m`);
+                            }
+                        }
+                    }
+                },
+                function(error) {
+                    console.error('GPS Error:', error);
+                },
+                { 
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 30000
+                }
+            );
+        }
+
+        function takePhoto() {
+            if (!navigator.mediaDevices) {
+                alert('Kamera tidak didukung di browser ini');
+                return;
+            }
+            
+            document.getElementById('cameraModal').classList.remove('hidden');
+            
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    cameraStream = stream;
+                    const video = document.getElementById('cameraPreview');
+                    video.srcObject = stream;
+                })
+                .catch(function(error) {
+                    alert('Error akses kamera: ' + error.message);
+                    closeCamera();
+                });
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('cameraPreview');
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const photoData = canvas.toDataURL('image/jpeg');
+            const currentPosition = currentMarker ? currentMarker.getLatLng() : map.getCenter();
+            
+            const photo = {
+                data: photoData,
+                lat: currentPosition.lat,
+                lng: currentPosition.lng,
+                timestamp: new Date().toISOString(),
+                time: new Date().toLocaleTimeString(),
+                description: prompt('Deskripsi foto:') || 'Photo Documentation'
+            };
+            
+            photos.push(photo);
+            
+            // Add photo marker to map
+            L.marker([currentPosition.lat, currentPosition.lng], {
+                icon: L.divIcon({
+                    html: '📷',
+                    iconSize: [25, 25],
+                    className: 'photo-marker'
+                })
+            }).addTo(map).bindPopup(`
+                <strong>📷 ${photo.description}</strong><br>
+                <img src="${photoData}" style="max-width: 200px; border-radius: 5px;"><br>
+                <small>${photo.time}</small>
+            `);
+            
+            document.getElementById('photoCount').textContent = photos.length;
+            addHistory('Foto diambil', photo.description);
+            
+            closeCamera();
+            alert('📷 Foto berhasil disimpan!');
+        }
+
+        function closeCamera() {
+            document.getElementById('cameraModal').classList.add('hidden');
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        }
+
+        function showDownloadMenu() {
+            if (points.length === 0) {
+                alert('❌ Belum ada data tracking!');
+                return;
+            }
+            document.getElementById('downloadModal').classList.remove('hidden');
+        }
+
+        function closeDownloadMenu() {
+            document.getElementById('downloadModal').classList.add('hidden');
+        }
+
+        function downloadData(format) {
+            if (points.length === 0) {
+                alert('❌ Tidak ada data untuk didownload!');
+                return;
+            }
+
+            switch(format) {
+                case 'pdf':
+                    generatePDFReport();
+                    break;
+                case 'json':
+                    downloadJSON();
+                    break;
+                case 'gpx':
+                    downloadGPX();
+                    break;
+                case 'kml':
+                    downloadKML();
+                    break;
+            }
+            
+            closeDownloadMenu();
+        }
+
+        function generatePDFReport() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Title
+            doc.setFontSize(20);
+            doc.text('LAPORAN MAPPING TRACKING', 105, 15, { align: 'center' });
+            
+            // Metadata
+            doc.setFontSize(12);
+            doc.text(`Tanggal: ${new Date().toLocaleDateString()}`, 20, 30);
+            doc.text(`Waktu: ${new Date().toLocaleTimeString()}`, 20, 38);
+            doc.text(`Total Titik: ${points.length}`, 20, 46);
+            doc.text(`Total Jarak: ${totalDistance.toFixed(1)} meter`, 20, 54);
+            doc.text(`Total Foto: ${photos.length}`, 20, 62);
+            
+            // Capture map as image
+            html2canvas(document.getElementById('map')).then(canvas => {
+                const mapImage = canvas.toDataURL('image/jpeg', 0.7);
+                
+                // Add map to PDF
+                doc.addImage(mapImage, 'JPEG', 20, 70, 170, 120);
+                
+                // Add history
+                doc.text('RIWAYAT PERGERAKAN:', 20, 200);
+                let yPosition = 208;
+                history.slice(-10).forEach(item => {
+                    if (yPosition < 280) {
+                        doc.text(`• ${item.action} - ${item.details}`, 25, yPosition);
+                        yPosition += 8;
+                    }
+                });
+                
+                // Add photos if any
+                if (photos.length > 0) {
+                    doc.addPage();
+                    doc.text('DOKUMENTASI FOTO:', 20, 20);
+                    let photoY = 30;
+                    
+                    photos.forEach((photo, index) => {
+                        if (photoY < 250) {
+                            doc.text(`${index + 1}. ${photo.description} (${photo.time})`, 20, photoY);
+                            doc.addImage(photo.data, 'JPEG', 20, photoY + 5, 50, 40);
+                            photoY += 55;
+                        }
+                    });
+                }
+                
+                // Save PDF
+                doc.save(`mapping_report_${new Date().getTime()}.pdf`);
+                alert('✅ PDF Report berhasil didownload!');
+            });
+        }
+
+        function downloadJSON() {
+            const data = {
+                metadata: {
+                    created: new Date().toISOString(),
+                    total_points: points.length,
+                    total_distance: totalDistance,
+                    total_photos: photos.length,
+                    duration: Math.round((new Date() - startTime) / 1000)
+                },
+                track: points,
+                photos: photos,
+                history: history
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tracking_data_${new Date().getTime()}.json`;
+            a.click();
+            
+            alert('✅ Data JSON berhasil didownload!');
+        }
+
+        function downloadGPX() {
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Mapping Tool">
+    <trk>
+        <name>Tracking ${new Date().toLocaleString()}</name>
+        <trkseg>`;
+    
+            points.forEach(point => {
+                gpx += `
+            <trkpt lat="${point.lat}" lon="${point.lng}">
+                <time>${point.timestamp}</time>
+            </trkpt>`;
+            });
+    
+            gpx += `
+        </trkseg>
+    </trk>
+</gpx>`;
+            
+            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `track_${new Date().getTime()}.gpx`;
+            a.click();
+            
+            alert('✅ Data GPX berhasil didownload!');
+        }
+
+        function downloadKML() {
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>Tracking ${new Date().toLocaleString()}</name>
+        <Placemark>
+            <LineString>
+                <coordinates>`;
+    
+            points.forEach(point => {
+                kml += `${point.lng},${point.lat},0 `;
+            });
+    
+            kml += `</coordinates>
+            </LineString>
+        </Placemark>
+    </Document>
+</kml>`;
+            
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `track_${new Date().getTime()}.kml`;
+            a.click();
+            
+            alert('✅ Data KML berhasil didownload!');
+        }
+
+        function drawTrackLine() {
+            if (trackPolyline) {
+                map.removeLayer(trackPolyline);
+            }
+            
+            const latLngs = points.map(p => [p.lat, p.lng]);
+            
+            if (latLngs.length > 1) {
+                trackPolyline = L.polyline(latLngs, {
+                    color: '#00ff88',
+                    weight: 6,
+                    opacity: 0.8
+                }).addTo(map);
+                
+                // Auto fit bounds
+                map.fitBounds(trackPolyline.getBounds());
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function updateAccuracyDisplay(accuracy) {
+            const accuracyElement = document.getElementById('accuracyInfo');
+            accuracyElement.textContent = `${Math.round(accuracy)}m`;
+        }
+
+        function updateDisplay() {
+            document.getElementById('pointCount').textContent = points.length;
+            document.getElementById('distance').textContent = totalDistance.toFixed(1);
+        }
+
+        function addHistory(action, details) {
+            const historyItem = {
+                action,
+                details,
+                timestamp: new Date().toLocaleTimeString()
+            };
+            
+            history.push(historyItem);
+            
+            const historyList = document.getElementById('historyList');
+            const itemElement = document.createElement('div');
+            itemElement.className = 'history-item';
+            itemElement.innerHTML = `<strong>${historyItem.timestamp}</strong><br>${action} - ${details}`;
+            
+            historyList.insertBefore(itemElement, historyList.firstChild);
+            
+            // Keep only last 15 items
+            if (historyList.children.length > 15) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+
+        function startDurationTimer() {
+            durationInterval = setInterval(() => {
+                if (startTime) {
+                    const duration = Math.round((new Date() - startTime) / 1000);
+                    document.getElementById('duration').textContent = duration;
+                }
+            }, 1000);
+        }
+
+        function stopDurationTimer() {
+            if (durationInterval) clearInterval(durationInterval);
+        }
+
+        // Initialize
+        window.addEventListener('load', initMap);
+    </script>
+</body>
+</html>
