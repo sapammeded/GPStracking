@@ -379,7 +379,7 @@ btnStartReplay.addEventListener('click', ()=>{
 btnStopReplay.addEventListener('click', ()=>{ if(replayInterval) clearInterval(replayInterval); replayInterval = null; });
 
 /* highlight */
-function startHighlight(uid){ document.querySelectorAll('.list-item').forEach(n=>n.style.boxShadow='none'); const el = document.getElementById('li-'+uid); if(el) el.style.boxShadow='0 8px 30px rgba(0,230,255,0.06)'; }
+function startHighlight(uid){ document.querySelectorAll('.list-item').forEach(n=>n.style.boxShadow='none'); const el = document.getElementById('li-'+uid); if(el) el.style.boxShadow = '0 8px 30px rgba(0,230,255,0.06)'; }
 
 /* safety: connection state */
 db.ref('.info/connected').on('value', s=>{ if(!s.val()) console.warn('Firebase disconnected'); });
