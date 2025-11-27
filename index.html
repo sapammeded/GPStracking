@@ -1,0 +1,576 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PATROLI — MONITOR (FULL FEATURES)</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#05060a; --panel:#07101a; --card:#0b1220; --muted:#9aa4b2; --accent:#00e6ff;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#02040a,#07101a);color:#e6f7ff}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(90deg,#041023,#081428);border-bottom:1px solid rgba(255,255,255,0.03)}
+.brand{font-weight:700}
+.container{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 56px);gap:12px;padding:12px}
+.panel{background:linear-gradient(180deg,var(--panel),#041018);border-radius:10px;padding:10px;overflow:auto;border:1px solid rgba(255,255,255,0.03)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn{padding:8px 10px;border-radius:8px;border:0;background:rgba(255,255,255,0.03);color:var(--accent);cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,var(--accent),#00c2ff);color:#001}
+.row{display:flex;gap:8px;align-items:center}
+#map{height:100%;border-radius:8px}
+.list-item{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;margin-bottom:8px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent);cursor:pointer}
+.thumb{width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,0.03)}
+.meta{flex:1}
+.meta h4{margin:0;font-size:14px;color:var(--accent)}
+.meta p{margin:4px 0 0;font-size:12px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.chatBox{margin-top:10px;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px}
+.chatList{height:160px;overflow:auto;padding:6px;background:transparent;border-radius:6px}
+.chatRow{display:flex;gap:6px;margin-bottom:8px}
+.alertFloat{position:fixed;right:18px;bottom:18px;padding:12px 14px;background:#ffcc66;color:#041018;border-radius:8px;z-index:9999}
+.search{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:rgba(0,0,0,0.25);color:var(--muted)}
+.footer{font-size:12px;color:var(--muted);margin-top:8px}
+@media(max-width:900px){ .container{grid-template-columns:1fr} #map{height:50vh} }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">PATROLI — MONITOR (FULL FEATURES)</div>
+    <div class="small">Realtime • GeoFence • Anomaly • Chat • Export • Replay</div>
+  </div>
+
+  <div class="container">
+    <div class="panel" id="leftPanel">
+      <div class="controls">
+        <button class="btn primary" id="centerAll">Center All</button>
+        <button class="btn" id="toggleFollow">Follow: OFF</button>
+        <button class="btn" id="toggleSound">Sound: OFF</button>
+        <button class="btn" id="exportCsv">Export CSV</button>
+        <button class="btn" id="exportXlsx">Export XLSX</button>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <input id="search" class="search" placeholder="Search name / area / shift..." />
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="from" type="datetime-local" style="flex:1;padding:8px;border-radius:6px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+        <input id="to" type="datetime-local" style="flex:1;padding:8px;border-radius:6px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label class="small">Area bbox (swLat,swLng,neLat,neLng)</label>
+        <input id="bbox" placeholder="-6.35,106.70,-6.10,106.90" style="width:100%;padding:8px;border-radius:6px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+      </div>
+
+      <div style="font-weight:700;margin-bottom:6px">Petugas / Live</div>
+      <div id="list"></div>
+
+      <div style="margin-top:10px;font-weight:700">Playback</div>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn" id="startReplay">Start</button>
+        <button class="btn" id="stopReplay">Stop</button>
+        <select id="speed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select>
+      </div>
+
+      <div class="chatBox">
+        <div style="font-weight:700;margin-bottom:6px">Chat (Realtime)</div>
+        <div id="chatList" class="chatList"></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <input id="chatInput" placeholder="Ketik pesan..." style="flex:1;padding:8px;border-radius:6px;border:0;background:rgba(0,0,0,0.18);color:var(--muted)"/>
+          <button class="btn" id="chatSend">Send</button>
+        </div>
+      </div>
+
+      <div class="footer">DB: <span id="dbPath">/patroli & /live</span> • Photos via Cloudinary/public URLs</div>
+    </div>
+
+    <div class="panel" id="mapPanel">
+      <div id="map"></div>
+    </div>
+  </div>
+
+<!-- libs -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+/* ================== CONFIG (project lo) ================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+const CLOUDINARY = { cloudName: "dowaohqkh" };
+const DB_PATROLI = '/patroli';
+const DB_LIVE = '/live';
+const CHAT_ROOM = 'global';
+/* ======================================================= */
+
+if(!window.firebase || !firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+firebase.auth().signInAnonymously().catch(e=>console.warn('auth err', e));
+
+/* UI refs */
+const elList = document.getElementById('list');
+const inpSearch = document.getElementById('search');
+const inpFrom = document.getElementById('from');
+const inpTo = document.getElementById('to');
+const inpBbox = document.getElementById('bbox');
+const btnCenterAll = document.getElementById('centerAll');
+const btnFollow = document.getElementById('toggleFollow');
+const btnSound = document.getElementById('toggleSound');
+const btnExportCsv = document.getElementById('exportCsv');
+const btnExportXlsx = document.getElementById('exportXlsx');
+const btnStartReplay = document.getElementById('startReplay');
+const btnStopReplay = document.getElementById('stopReplay');
+const selSpeed = document.getElementById('speed');
+const chatList = document.getElementById('chatList');
+const chatInp = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+
+let FOLLOW = false, SOUND = false;
+
+/* MAP */
+const map = L.map('map', { zoomControl:false }).setView([-6.2,106.81666], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+let markers = {}; // uid -> marker
+let patrolCache = {}; // uid -> [records]
+let liveCache = {}; // uid -> live
+let listOrder = [];
+let selectedUid = null;
+let trackLines = {};
+let replayInterval = null;
+
+/* beep simple */
+function beep(){ if(!SOUND) return; try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.03; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>{ o.stop(); ctx.close(); },120); }catch(e){} }
+
+/* helpers */
+function fmtTs(ts){
+  if(!ts) return '—';
+  const n = Number(ts);
+  const ms = n < 1e12 ? n * 1000 : n;
+  const d = new Date(ms);
+  if(isNaN(d)) return '—';
+  return d.toLocaleString();
+}
+function safeImg(photo){
+  if(!photo) return `https://res.cloudinary.com/${CLOUDINARY.cloudName}/image/upload/w_300,h_220,c_fill/q_auto/white.png`;
+  return photo;
+}
+function addOrUpdateMarker(uid, lat, lon, title, photo, ts){
+  if(!lat || !lon) return;
+  if(!markers[uid]){
+    const m = L.marker([lat,lon]).addTo(map);
+    m.bindPopup(`<b>${title||uid}</b><div style="font-size:12px">${fmtTs(ts)}</div><img src="${photo||''}" style="width:220px;height:140px;object-fit:cover" onerror="this.style.display='none'"/>`);
+    m.on('click', ()=> { selectUid(uid); });
+    markers[uid]=m;
+  } else {
+    markers[uid].setLatLng([lat,lon]);
+    markers[uid].setPopupContent(`<b>${title||uid}</b><div style="font-size:12px">${fmtTs(ts)}</div><img src="${photo||''}" style="width:220px;height:140px;object-fit:cover" onerror="this.style.display='none'"/>`);
+  }
+  if(FOLLOW && selectedUid === uid){
+    map.setView([lat,lon], 16);
+  }
+}
+
+/* render list */
+function renderList(){
+  elList.innerHTML='';
+  listOrder.forEach(uid=>{
+    const live = liveCache[uid] || {};
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const name = (live.presence && live.presence.officerName) || last.name || uid;
+    const photo = last.photo || last.photoUrl || live.photoUrl || null;
+    const time = (live.presence && live.presence.lastSeen) || last.time || last.timestamp || 0;
+    const area = last.area || last.description || '';
+    const li = document.createElement('div'); li.className='list-item'; li.id = 'li-'+uid;
+    li.innerHTML = `<img class="thumb" src="${safeImg(photo)}" onerror="this.onerror=null;this.src='https://res.cloudinary.com/${CLOUDINARY.cloudName}/image/upload/w_300,h_220,c_fill/q_auto/white.png'"/>
+      <div class="meta"><h4>${name}</h4><p>${area} • ${fmtTs(time)}</p></div>`;
+    li.onclick = ()=>{ selectUid(uid); };
+    elList.appendChild(li);
+  });
+}
+
+/* select uid */
+function selectUid(uid){
+  selectedUid = uid;
+  startHighlight(uid);
+  const live = liveCache[uid] || {};
+  const lg = live.lastGps || {};
+  if(lg && lg.lat && lg.lon){
+    map.setView([lg.lat, lg.lon], 16);
+    if(markers[uid]) markers[uid].openPopup();
+  } else if(patrolCache[uid] && patrolCache[uid][0]){
+    const it = patrolCache[uid][0];
+    addOrUpdateMarker(uid, it.lat||it.latitude, it.lng||it.lon, it.name||uid, it.photo||it.photoUrl, it.time||it.timestamp);
+    map.setView([it.lat||it.latitude, it.lng||it.lon], 15);
+  }
+}
+
+/* highlight */
+function startHighlight(uid){
+  document.querySelectorAll('.list-item').forEach(n=> n.style.boxShadow='none');
+  const e = document.getElementById('li-'+uid); if(e) e.style.boxShadow='0 12px 30px rgba(0,230,255,0.06)';
+}
+
+/* collect rows for export */
+function collectRows(){
+  const rows = [];
+  listOrder.forEach(uid=>{
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const live = liveCache[uid] || {};
+    const pres = live.presence || {};
+    const lg = live.lastGps || {};
+    rows.push({
+      uid,
+      name: pres.officerName||last.name||'',
+      area: last.area||last.description||'',
+      lat: lg.lat || last.lat || last.latitude || '',
+      lon: lg.lon || last.lng || last.lon || last.longitude || '',
+      time: last.time||last.timestamp||lg.time||pres.lastSeen||''
+    });
+  });
+  return rows;
+}
+
+/* export CSV/XLSX */
+btnExportCsv.addEventListener('click', ()=>{
+  const rows = collectRows();
+  if(rows.length===0){ alert('No data'); return; }
+  const keys = Object.keys(rows[0]);
+  let csv = keys.join(',') + '\n';
+  rows.forEach(r=> csv += keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(',') + '\n');
+  const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='patrol_export.csv'; a.click();
+  setTimeout(()=> URL.revokeObjectURL(url),1500);
+});
+btnExportXlsx.addEventListener('click', ()=>{
+  const rows = collectRows();
+  if(rows.length===0){ alert('No data'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'patrol');
+  XLSX.writeFile(wb, 'patrol_export_'+Date.now()+'.xlsx');
+});
+
+/* center all */
+btnCenterAll.addEventListener('click', ()=>{
+  const keys = Object.keys(markers);
+  if(!keys.length) return alert('No markers');
+  const pts = keys.map(k=> markers[k].getLatLng());
+  map.fitBounds(L.latLngBounds(pts).pad(0.2));
+});
+
+/* follow toggle */
+btnFollow.addEventListener('click', ()=>{
+  FOLLOW = !FOLLOW; btnFollow.textContent = 'Follow: ' + (FOLLOW ? 'ON' : 'OFF');
+});
+
+/* sound toggle */
+btnSound.addEventListener('click', ()=>{ SOUND = !SOUND; btnSound.textContent = 'Sound: ' + (SOUND ? 'ON' : 'OFF'); });
+
+/* replay */
+btnStartReplay.addEventListener('click', ()=>{
+  if(!selectedUid) return alert('Pilih petugas di list dulu');
+  const recs = (patrolCache[selectedUid]||[]).slice().reverse(); // oldest->newest
+  if(!recs.length) return alert('Tidak ada riwayat');
+  const speed = Number(selSpeed.value)||1;
+  let idx=0;
+  if(trackLines[selectedUid]) map.removeLayer(trackLines[selectedUid]);
+  const latlngs=[];
+  replayInterval = setInterval(()=>{
+    const it = recs[idx];
+    const lat = it.lat || it.latitude; const lon = it.lng || it.lon || it.longitude;
+    if(lat && lon){
+      latlngs.push([lat,lon]);
+      if(trackLines[selectedUid]) trackLines[selectedUid].setLatLngs(latlngs);
+      else trackLines[selectedUid] = L.polyline(latlngs, {color:'#00e6ff', weight:4, opacity:0.85}).addTo(map);
+      map.setView([lat,lon], 15);
+    }
+    idx++;
+    if(idx>=recs.length){ clearInterval(replayInterval); replayInterval=null; }
+  }, 1000 / speed);
+});
+btnStopReplay.addEventListener('click', ()=>{ if(replayInterval) clearInterval(replayInterval); replayInterval=null; });
+
+/* search filter */
+inpSearch.addEventListener('input', ()=> {
+  const q = inpSearch.value.trim().toLowerCase();
+  document.querySelectorAll('.list-item').forEach(el=>{
+    const txt = el.innerText.toLowerCase();
+    el.style.display = txt.indexOf(q) !== -1 ? 'flex' : 'none';
+  });
+});
+
+/* bbox filter parse */
+function inBbox(lat,lon,bboxStr){
+  if(!bboxStr) return true;
+  try{
+    const parts = bboxStr.split(',').map(s=>Number(s.trim()));
+    if(parts.length!==4 || parts.some(isNaN)) return true;
+    const [swLat,swLng,neLat,neLng] = parts;
+    return lat >= swLat && lat <= neLat && lon >= swLng && lon <= neLng;
+  }catch(e){ return true; }
+}
+
+/* ===================== DB listeners ===================== */
+const patroliRef = db.ref(DB_PATROLI);
+const liveRef = db.ref(DB_LIVE);
+
+/* normalize patrol snapshot (expected: /patroli/{uid}/{pushId} -> record) */
+function processPatroliSnapshot(obj){
+  // obj: uid -> { pushId: record, ... }
+  Object.keys(obj||{}).forEach(uid=>{
+    const recMap = obj[uid] || {};
+    const arr = Object.keys(recMap).map(k => Object.assign({ _key: k }, recMap[k]));
+    arr.sort((a,b)=> (b.time||b.timestamp||0) - (a.time||a.timestamp||0));
+    patrolCache[uid] = arr;
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  // order by last seen
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  // update markers for latest
+  Object.keys(patrolCache).forEach(uid=>{
+    const last = patrolCache[uid] && patrolCache[uid][0];
+    const lat = last && (last.lat || last.latitude || last.latd);
+    const lon = last && (last.lng || last.lon || last.longitude || last.long);
+    if(lat && lon) addOrUpdateMarker(uid, lat, lon, last.name || last.officer || uid, last.photo || last.photoUrl || null, last.time || last.timestamp);
+  });
+  renderList();
+}
+
+/* process live */
+function processLiveSnapshot(obj){
+  Object.keys(obj||{}).forEach(uid=>{
+    liveCache[uid] = obj[uid] || {};
+    const lg = liveCache[uid].lastGps || liveCache[uid].lastgps || liveCache[uid].last_location || {};
+    const lat = lg.lat || lg.latitude || lg.latd;
+    const lon = lg.lon || lg.longitude || lg.long;
+    const name = (liveCache[uid].presence && liveCache[uid].presence.officerName) || liveCache[uid].officer || uid;
+    const photo = liveCache[uid].photoUrl || liveCache[uid].photo || null;
+    if(lat && lon) addOrUpdateMarker(uid, lat, lon, name, photo, lg.time || (liveCache[uid].presence && liveCache[uid].presence.lastSeen));
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
+
+/* attach */
+patroliRef.on('value', snap=>{
+  processPatroliSnapshot(snap.val() || {});
+}, e=>console.warn('patroli err', e));
+liveRef.on('value', snap=>{
+  processLiveSnapshot(snap.val() || {});
+}, e=>console.warn('live err', e));
+
+/* child added/changed beeps */
+patroliRef.on('child_added', ()=>{ beep(); });
+patroliRef.on('child_changed', ()=>{ beep(); });
+liveRef.on('child_changed', ()=>{ beep(); });
+
+/* ===================== ANOMALY & GEOFENCE (lightweight) ===================== */
+/* utils */
+function haversine(lat1,lon1,lat2,lon2){
+  if(!lat1||!lon1||!lat2||!lon2) return 0;
+  const R=6371000; const toRad=v=>v*Math.PI/180;
+  const dLat=toRad(lat2-lat1); const dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+const anomalyState = {}; const geoState = {}; const geofences = {};
+
+/* load geofences once */
+db.ref('/geofences').once('value').then(s=>{
+  const obj = s.val()||{};
+  Object.keys(obj).forEach(k=>{
+    const g = obj[k];
+    geofences[k] = g;
+    if(g.type === 'polygon' && Array.isArray(g.coords)){ L.polygon(g.coords, {color:'#ff5c5c', weight:2, fillOpacity:0.06}).addTo(map); }
+    else if(g.type === 'bbox' && g.coords && g.coords.length===4){
+      const [swLat,swLng,neLat,neLng] = g.coords; L.rectangle([[swLat,swLng],[neLat,neLng]], {color:'#ffb86b', weight:2, fillOpacity:0.03}).addTo(map);
+    }
+  });
+});
+
+/* simple point-in-polygon */
+function pointInPoly(point, vs){
+  if(!vs||!vs.length) return false;
+  const x=point[0], y=point[1];
+  let inside=false;
+  for(let i=0,j=vs.length-1;i<vs.length;j=i++){
+    const xi=vs[i][0], yi=vs[i][1], xj=vs[j][0], yj=vs[j][1];
+    const intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi+1e-12)+xi);
+    if(intersect) inside=!inside;
+  }
+  return inside;
+}
+
+function pushAlert(uid,type,details){
+  const ref = db.ref('/alerts').push();
+  ref.set({ uid, type, details, time: Date.now() });
+  showAlert(`${type} • ${uid} • ${JSON.stringify(details).slice(0,80)}`);
+}
+
+/* detect for a uid sample */
+function detectFor(uid, lat, lon, t){
+  if(!lat||!lon) return;
+  const s = anomalyState[uid] || {};
+  const now = t || Date.now();
+  if(s.lastLat !== undefined && s.lastLon !== undefined && s.lastTime){
+    const dist = haversine(s.lastLat, s.lastLon, lat, lon);
+    const dt = Math.max(1, (now - s.lastTime)/1000); // sec
+    const speed = (dist/dt)*3.6; // km/h
+    if(speed > 120){
+      pushAlert(uid,'HIGH_SPEED',{speed:Math.round(speed), dist:Math.round(dist)});
+      beep();
+    }
+    if(dist > 2000){
+      pushAlert(uid,'LARGE_JUMP',{dist:Math.round(dist)});
+      beep();
+    }
+    if(dist < 5 && (now - (s.lastMoveTime||s.lastTime)) > (10*60*1000)){
+      pushAlert(uid,'LONG_STOP',{idleMs: now - (s.lastMoveTime||s.lastTime)});
+      beep();
+    }
+    if(dist > 5) s.lastMoveTime = now;
+  } else s.lastMoveTime = now;
+  s.lastLat = lat; s.lastLon = lon; s.lastTime = now;
+  anomalyState[uid]=s;
+
+  // geofence check
+  Object.keys(geofences).forEach(gid=>{
+    const g = geofences[gid];
+    let inside=false;
+    if(g.type==='polygon' && Array.isArray(g.coords)) inside = pointInPoly([lat,lon], g.coords);
+    else if(g.type==='bbox' && g.coords && g.coords.length===4){
+      const [swLat,swLng,neLat,neLng] = g.coords; inside = (lat>=swLat && lat<=neLat && lon>=swLng && lon<=neLng);
+    }
+    geoState[uid] = geoState[uid]||{};
+    const prev = !!geoState[uid][gid];
+    if(inside && !prev){ pushAlert(uid,'GEOFENCE_ENTER',{geofence:gid,name:g.name}); geoState[uid][gid]=true; }
+    if(!inside && prev){ pushAlert(uid,'GEOFENCE_EXIT',{geofence:gid,name:g.name}); geoState[uid][gid]=false; }
+  });
+}
+
+/* integrate anomaly on live/patroli updates */
+liveRef.on('value', snap=>{
+  const obj = snap.val()||{};
+  Object.keys(obj).forEach(uid=>{
+    const rec = obj[uid] || {};
+    const lg = rec.lastGps || rec.lastgps || rec.last_location || {};
+    const lat = Number(lg.lat || lg.latitude); const lon = Number(lg.lon || lg.longitude);
+    const t = lg.time || (rec.presence && rec.presence.lastSeen) || Date.now();
+    detectFor(uid, lat, lon, t);
+  });
+});
+patroliRef.on('child_added', snap=>{
+  const uid = snap.key; const recs = snap.val()||{};
+  Object.keys(recs).forEach(k=>{
+    const it = recs[k]; const lat = Number(it.lat||it.latitude); const lon = Number(it.lng||it.lon||it.longitude);
+    detectFor(uid, lat, lon, it.time||it.timestamp||Date.now());
+  });
+});
+patroliRef.on('child_changed', snap=>{
+  const uid = snap.key; const recs = snap.val()||{};
+  let latest = null;
+  Object.keys(recs).forEach(k=>{ const it = recs[k]; if(!latest || ((it.time||it.timestamp||0) > (latest.time||latest.timestamp||0))) latest = it; });
+  if(latest){ detectFor(uid, Number(latest.lat||latest.latitude), Number(latest.lng||latest.lon||latest.longitude), latest.time||latest.timestamp||Date.now()); }
+});
+
+/* ===================== CHAT ===================== */
+const chatRef = db.ref(`/chat/${CHAT_ROOM}`);
+chatSend.addEventListener('click', ()=> {
+  const t = chatInp.value.trim(); if(!t) return;
+  const u = (firebase.auth().currentUser && firebase.auth().currentUser.uid) || 'guest';
+  const name = 'Operator';
+  chatRef.push({ uid:u, name, text:t, time: Date.now() });
+  chatInp.value='';
+});
+chatRef.limitToLast(200).on('child_added', s=>{
+  const m = s.val(); if(!m) return;
+  const el = document.createElement('div'); el.className='chatRow';
+  el.style.padding='6px'; el.style.borderRadius='6px'; el.style.background='rgba(255,255,255,0.02)';
+  el.innerHTML = `<div style="min-width:64px"><b style="color:#00e6ff">${m.name||m.uid}</b><div style="font-size:11px;color:#9aa4b2">${new Date(m.time||Date.now()).toLocaleTimeString()}</div></div><div style="flex:1;color:#cfe6ff">${m.text}</div>`;
+  chatList.appendChild(el); chatList.scrollTop = chatList.scrollHeight;
+});
+
+/* ===================== UI: update render when data changes ===================== */
+function refreshUI(){
+  // rebuild listOrder from available keys
+  const uids = new Set([...Object.keys(patrolCache), ...Object.keys(liveCache)]);
+  listOrder = Array.from(uids);
+  // sort by last time
+  listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
+function renderList(){
+  elList.innerHTML='';
+  listOrder.forEach(uid=>{
+    const live = liveCache[uid] || {};
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const name = (live.presence && live.presence.officerName) || last.name || uid;
+    const photo = last.photo || last.photoUrl || live.photoUrl || null;
+    const time = (live.presence && live.presence.lastSeen) || last.time || last.timestamp || 0;
+    const area = last.area || last.description || '';
+    // bbox filter
+    const bboxStr = inpBbox.value.trim();
+    const lat = Number(live.lastGps && (live.lastGps.lat || live.lastGps.latitude) || last.lat || last.latitude || 0);
+    const lon = Number(live.lastGps && (live.lastGps.lon || live.lastGps.longitude) || last.lng || last.lon || last.longitude || 0);
+    if(bboxStr && (!inBbox(lat,lon,bboxStr))) return;
+    const row = document.createElement('div'); row.className='list-item'; row.id='li-'+uid;
+    row.innerHTML = `<img class="thumb" src="${safeImg(photo)}" onerror="this.onerror=null;this.src='https://res.cloudinary.com/${CLOUDINARY.cloudName}/image/upload/w_300,h_220,c_fill/q_auto/white.png'"/>
+      <div class="meta"><h4>${name}</h4><p>${area} • ${fmtTs(time)}</p></div>`;
+    row.onclick = ()=> selectUid(uid);
+    elList.appendChild(row);
+    row._rec = { uid, name, lat, lon, time, area };
+  });
+}
+
+/* ensure UI updates when DB changes */
+patroliRef.on('value', snap=>{
+  patrolCache = snap.val() || {};
+  refreshUI();
+});
+liveRef.on('value', snap=>{
+  liveCache = snap.val() || {};
+  refreshUI();
+});
+
+/* show floating alert */
+function showAlert(msg){
+  const div = document.createElement('div'); div.className='alertFloat'; div.innerText = msg;
+  document.body.appendChild(div); setTimeout(()=>{ div.remove(); }, 7000);
+}
+
+/* final: log connected */
+db.ref('.info/connected').on('value', s=>{ if(!s.val()) console.warn('firebase disconnected'); });
+
+console.log('index_with_features initialized. Listening to', DB_PATROLI, DB_LIVE);
+/* ===================== end of script ===================== */
+</script>
+</body>
+</html>
