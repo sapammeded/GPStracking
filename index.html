@@ -1,0 +1,507 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Patroli — Cyber Ops (Black Pro)</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<!-- Fonts (system fallback used) -->
+<style>
+  :root{
+    --bg:#050507;
+    --panel:#0b0b0f;
+    --glass: rgba(255,255,255,0.03);
+    --accent:#00ffd5; /* cyber cyan */
+    --accent-2:#ff2d55; /* alert red */
+    --muted:#9aa3b2;
+    --glass-2: rgba(255,255,255,0.02);
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Arial;color:#e6eef6;background:linear-gradient(180deg,#020205,#050507)}
+  /* Layout */
+  .app{display:grid;grid-template-columns:360px 1fr 420px;gap:12px;height:100vh;padding:12px;box-sizing:border-box}
+  .panel{background:linear-gradient(180deg,var(--panel),#0b0b11);border-radius:12px;padding:12px;box-shadow:0 12px 40px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.02);overflow:hidden}
+  /* Left sidebar */
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .logo{width:42px;height:42px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#0066ff);display:flex;align-items:center;justify-content:center;font-weight:800;color:#020202}
+  .title{font-weight:800;font-size:16px}
+  .subtitle{color:var(--muted);font-size:12px}
+  .controls{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .row{display:flex;gap:8px;align-items:center}
+  input[type="text"], select, textarea {width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit;box-sizing:border-box}
+  button.btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:var(--muted);cursor:pointer}
+  button.btn.primary{background:linear-gradient(90deg,var(--accent),#00bfa5);color:#021; border:0}
+  .mini{font-size:12px;color:var(--muted)}
+  .petugas-list{margin-top:10px;max-height:60vh;overflow:auto;padding-right:6px}
+  .petugas-item{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border:1px solid rgba(255,255,255,0.02);margin-bottom:8px;cursor:pointer;transition:all .12s}
+  .petugas-item:hover{transform:translateY(-4px);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+  .petugas-thumb{width:56px;height:56px;border-radius:8px;background:#031018;overflow:hidden;flex-shrink:0;border:1px solid rgba(255,255,255,0.02)}
+  .petugas-thumb img{width:100%;height:100%;object-fit:cover}
+  .petugas-meta .name{font-weight:700}
+  .petugas-meta .meta{font-size:12px;color:var(--muted)}
+  .status-dot{width:10px;height:10px;border-radius:999px}
+  /* Center map */
+  .map-panel{position:relative}
+  .hud{position:absolute;left:18px;top:18px;z-index:9999;display:flex;gap:10px;align-items:center}
+  .hud-card{background:linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0.35));padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);color:var(--muted);min-width:120px}
+  #map{position:absolute;inset:0;border-radius:10px;overflow:hidden}
+  /* Pulsing marker */
+  .pulse-marker {
+    display:inline-block;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--accent-2);
+    box-shadow:0 0 0 rgba(255,45,85,0.7);
+    position:relative;
+  }
+  .pulse-marker::after{
+    content:"";position:absolute;left:-8px;top:-8px;width:34px;height:34px;border-radius:50%;background:rgba(255,45,85,0.12);animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse{0%{transform:scale(0.6);opacity:1}100%{transform:scale(1.8);opacity:0}}
+  .marker-label{font-size:12px;color:#fff;background:rgba(0,0,0,0.6);padding:4px 6px;border-radius:6px;margin-top:6px}
+  /* Right intel panel */
+  .intel-grid{display:flex;flex-direction:column;gap:10px}
+  .intel-photo{width:100%;height:220px;background:#020202;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .intel-photo img{width:100%;height:100%;object-fit:cover}
+  .mission-log{max-height:45vh;overflow:auto;padding:6px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+  .log-item{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:13px}
+  .hud-center{display:flex;gap:12px;align-items:center}
+  .chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
+  /* debug overlay */
+  #dbg{position:fixed;left:10px;bottom:10px;background:#010101;color:#fff;padding:8px;border-radius:8px;max-width:420px;max-height:35vh;overflow:auto;display:none;z-index:99999}
+  #dbg .close{float:right;cursor:pointer;color:var(--muted)}
+  /* responsive */
+  @media(max-width:1100px){ .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto} .panel.right{order:3} .map-panel{order:2} }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- LEFT: Control -->
+  <div class="panel left">
+    <div class="brand">
+      <div class="logo" style="background:linear-gradient(135deg,#0ff,#00bcd4);width:44px;height:44px;border-radius:8px"></div>
+      <div>
+        <div class="title">PATROLI — CYBER OPS</div>
+        <div class="subtitle">Black Pro • Real-time Command</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="row">
+        <input id="search" type="text" placeholder="Cari nama / id..." />
+        <button id="btnClear" class="btn" title="Clear">CLR</button>
+      </div>
+
+      <div class="row">
+        <select id="filterShift"><option value="">— Semua Shift —</option><option value="pagi">PAGI</option><option value="siang">SIANG</option><option value="malam">MALAM</option></select>
+        <select id="filterStatus"><option value="">— Semua Status —</option><option value="PATROLI">PATROLI</option><option value="STANDBY">STANDBY</option><option value="ALERT">ALERT</option></select>
+      </div>
+
+      <div class="row">
+        <input id="fromTime" type="datetime-local" />
+        <input id="toTime" type="datetime-local" />
+      </div>
+
+      <div class="row">
+        <input id="bbox" type="text" placeholder="bbox: swLat,swLng,neLat,neLng" />
+        <button id="btnApply" class="btn primary">Apply</button>
+      </div>
+
+      <div style="margin-top:8px" class="mini">Realtime path: <code style="color:var(--accent)">/patroli</code></div>
+
+    </div>
+
+    <div class="petugas-list" id="petugasList">
+      <div class="mini" style="padding:10px;color:var(--muted)">Menunggu data...</div>
+    </div>
+
+    <div style="margin-top:8px" class="mini">Tombol cepat: <button id="btnExport" class="btn">Export CSV</button> <button id="btnExportX" class="btn">Export XLSX</button> <button id="btnEnableNotif" class="btn">Enable Sound</button></div>
+
+  </div>
+
+  <!-- CENTER: Map -->
+  <div class="panel map-panel">
+    <div class="hud">
+      <div class="hud-card">
+        <div style="font-weight:700;color:var(--accent)">STATUS</div>
+        <div class="mini" id="connectionState">Connecting...</div>
+      </div>
+      <div class="hud-card">
+        <div style="font-weight:700;color:var(--accent)">ACTIVE</div>
+        <div class="mini" id="activeCount">0</div>
+      </div>
+      <div class="hud-card hud-center">
+        <div class="chip" id="localTime">--</div>
+        <div class="chip" id="lastPing">Ping: --ms</div>
+      </div>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <!-- RIGHT: Intel -->
+  <div class="panel right">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Intel Panel</div>
+      <div class="mini">Live Feed</div>
+    </div>
+
+    <div class="intel-grid">
+      <div class="intel-photo" id="intelPhoto">
+        <div class="mini">Pilih petugas untuk lihat foto</div>
+      </div>
+
+      <div class="card mission-log" id="missionLog">
+        <div style="font-weight:700;margin-bottom:6px">Mission Log</div>
+        <div id="logList"><div class="log-item">Belum ada event</div></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Detail</div>
+          <div class="mini" id="detailTime">—</div>
+        </div>
+        <div id="detailBox" style="margin-top:8px" class="mini">Pilih petugas</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Debug overlay -->
+<div id="dbg"><span style="font-weight:700">DEBUG</span> <span class="close" onclick="document.getElementById('dbg').style.display='none'">×</span><div id="dbgout" style="margin-top:8px"></div></div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script>
+/* -------------------------
+   CONFIG — EDIT IF NEEDED
+   ------------------------- */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+// Cloudinary info (for images in DB; not required here unless you want upload)
+const CLOUDINARY = { cloudName: "dowaohqkh", uploadPreset: "Patroli" };
+
+/* -------------------------
+   INITIALIZE
+   ------------------------- */
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+
+/* -------------------------
+   UI Refs
+   ------------------------- */
+const petugasListEl = document.getElementById('petugasList');
+const connectionStateEl = document.getElementById('connectionState');
+const activeCountEl = document.getElementById('activeCount');
+const logListEl = document.getElementById('logList');
+const intelPhotoEl = document.getElementById('intelPhoto');
+const detailBox = document.getElementById('detailBox');
+const detailTime = document.getElementById('detailTime');
+const dbgout = document.getElementById('dbgout');
+let audioEnabled = false;
+const notify = new Audio('https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg');
+
+/* -------------------------
+   MAP SETUP
+   ------------------------- */
+const map = L.map('map',{zoomControl:true}).setView([-6.200,106.8166], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:''}).addTo(map);
+
+/* pulse icon helper */
+function makePulseIcon(color){
+  const html = `<div style="display:flex;flex-direction:column;align-items:center;">
+    <div style="width:16px;height:16px;border-radius:50%;background:${color};box-shadow:0 0 12px ${color}, inset 0 0 6px #000"></div>
+    </div>`;
+  return L.divIcon({className:'', html:html, iconSize:[22,22], iconAnchor:[11,11]});
+}
+
+/* -------------------------
+   State
+   ------------------------- */
+let markers = {}; // id -> marker
+let currentData = {}; // id -> object
+let followId = null;
+let seen = new Set();
+
+/* debug helper */
+function showDbg(msg){ try{ dbgout.innerHTML += '<div>'+String(msg)+'</div>'; document.getElementById('dbg').style.display='block'; }catch(e){} }
+
+/* -------------------------
+   Real-time listeners
+   ------------------------- */
+const patroliRef = db.ref('/patroli');
+
+// connection info
+db.ref('.info/connected').on('value', snap => {
+  const val = snap.val();
+  connectionStateEl.textContent = val ? 'Connected' : 'Disconnected';
+});
+
+// initial load + listeners
+patroliRef.on('value', snapshot => {
+  const val = snapshot.val() || {};
+  currentData = val;
+  renderAll(val);
+  updateActiveCount(Object.keys(val).length);
+}, err => {
+  showDbg('patroliRef err: ' + (err && err.message));
+});
+
+// child changed -> log + update
+patroliRef.on('child_changed', snap=>{
+  const id = snap.key; const d = snap.val();
+  currentData[id]=d;
+  logEvent('update', id, d);
+  updateSingle(id,d);
+});
+patroliRef.on('child_added', snap=>{
+  const id = snap.key; const d = snap.val();
+  currentData[id]=d;
+  logEvent('new', id, d);
+  updateSingle(id,d);
+});
+patroliRef.on('child_removed', snap=>{
+  const id = snap.key;
+  logEvent('removed', id, {});
+  if(markers[id]){ map.removeLayer(markers[id]); delete markers[id]; }
+  const el = document.getElementById('item-'+id); if(el) el.remove();
+});
+
+/* -------------------------
+   RENDER FUNCTIONS
+   ------------------------- */
+function renderAll(data){
+  petugasListEl.innerHTML = '';
+  // sort by timestamp desc
+  const ids = Object.keys(data || {}).sort((a,b)=> {
+    const ta = Number((data[a]||{}).timestamp||0), tb = Number((data[b]||{}).timestamp||0);
+    return tb - ta;
+  });
+  ids.forEach(id => {
+    const d = data[id];
+    addOrUpdateListItem(id,d);
+    addOrUpdateMarker(id,d);
+  });
+  // hide empty note
+  if(ids.length===0){
+    petugasListEl.innerHTML = '<div class="mini" style="padding:10px;color:var(--muted)">Belum ada petugas</div>';
+  }
+}
+
+function addOrUpdateListItem(id,d){
+  let el = document.getElementById('item-'+id);
+  const photo = (d.photos && d.photos[0]) || d.photoUrl || '';
+  if(!el){
+    el = document.createElement('div'); el.id = 'item-'+id; el.className='petugas-item';
+    el.innerHTML = `<div class="petugas-thumb"><img src="${photo}" onerror="this.style.opacity=.4"></div>
+      <div class="petugas-meta">
+        <div class="name">${escapeHtml(d.name || id)}</div>
+        <div class="meta">${escapeHtml(d.description || '')} • ${d.shift || ''}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right"><div class="status-dot" id="dot-${id}" style="background:${d.status==='ALERT'?varColor('--accent-2'):'#00ffb1'}"></div></div>`;
+    el.addEventListener('click', ()=>{ openDetail(id); setFollow(id); });
+    petugasListEl.prepend(el);
+  } else {
+    el.querySelector('.petugas-thumb img').src = photo;
+    el.querySelector('.name').innerText = d.name || id;
+    el.querySelector('.meta').innerText = (d.description||'') + ' • ' + (d.shift||'');
+  }
+}
+
+function addOrUpdateMarker(id,d){
+  if(!d || !isFinite(Number(d.lat)) || !isFinite(Number(d.lng))) return;
+  const lat = Number(d.lat), lng = Number(d.lng);
+  const color = (d.status==='ALERT') ? getVar('--accent-2') : getVar('--accent');
+  if(markers[id]){
+    markers[id].setLatLng([lat,lng]);
+    markers[id].setPopupContent(popupHtml(id,d));
+  } else {
+    const icon = makePulseIcon(color);
+    const m = L.marker([lat,lng], {icon: icon}).addTo(map);
+    m.bindPopup(popupHtml(id,d));
+    markers[id]=m;
+  }
+  // follow
+  if(followId===id){
+    try{ map.panTo([lat,lng]); }catch(e){}
+  }
+}
+
+function popupHtml(id,d){
+  return `<div style="min-width:180px"><b>${escapeHtml(d.name||id)}</b><div style="font-size:12px;color:${getVar('--muted')}">${escapeHtml(d.description||'')}</div>
+  <div style="margin-top:6px;font-size:12px">${d.timestamp ? new Date(d.timestamp).toLocaleString() : '-'}</div>
+  ${d.photoUrl ? '<div style="margin-top:6px"><img src="'+escapeHtml(d.photoUrl)+'" style="width:100%;border-radius:6px"></div>' : ''}
+  </div>`;
+}
+
+/* -------------------------
+   DETAIL / INTEL
+   ------------------------- */
+function openDetail(id){
+  const d = currentData[id] || {};
+  detailBox.innerHTML = `<div style="font-weight:800;color:var(--accent)">${escapeHtml(d.name||id)}</div>
+    <div class="mini">${escapeHtml(d.description||'')}</div>
+    <div style="margin-top:8px"><b>Shift:</b> ${escapeHtml(d.shift||'-')}</div>
+    <div style="margin-top:6px"><b>Status:</b> ${escapeHtml(d.status||'-')}</div>
+    <div style="margin-top:6px" class="mini">Pos: ${d.lat || '-'}, ${d.lng || '-'}</div>`;
+  detailTime.innerText = d.timestamp ? new Date(d.timestamp).toLocaleString() : '-';
+  // photo
+  intelPhotoEl.innerHTML = d.photoUrl ? `<img src="${escapeHtml(d.photoUrl)}" alt="photo">` : '<div class="mini">No photo</div>';
+}
+
+/* -------------------------
+   LOG / EVENTS
+   ------------------------- */
+function logEvent(type,id,d){
+  const time = new Date().toLocaleTimeString();
+  const el = document.createElement('div'); el.className='log-item';
+  el.innerHTML = `<div style="font-weight:700">${type.toUpperCase()}</div><div class="small">${escapeHtml(d.name||id)} • ${time}</div>`;
+  logListEl.prepend(el);
+  if(type==='new' || type==='update'){
+    if(audioEnabled){ notify.play().catch(()=>{}); }
+  }
+}
+
+/* -------------------------
+   HELPERS
+   ------------------------- */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function getVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name) || ''; }
+function varColor(name){ return getVar(name) || '#ff2d55'; }
+function updateSingle(id,d){ addOrUpdateListItem(id,d); addOrUpdateMarker(id,d); }
+function updateActiveCount(n){ activeCountEl.innerText = n; }
+
+/* -------------------------
+   FILTER / SEARCH
+   ------------------------- */
+document.getElementById('btnApply').addEventListener('click', ()=>{
+  const shift = document.getElementById('filterShift').value;
+  const status = document.getElementById('filterStatus').value;
+  const bboxStr = document.getElementById('bbox').value.trim();
+  const from = document.getElementById('fromTime').value ? Date.parse(document.getElementById('fromTime').value) : 0;
+  const to = document.getElementById('toTime').value ? Date.parse(document.getElementById('toTime').value) : Infinity;
+  let bbox = null;
+  if(bboxStr){ const arr = bboxStr.split(',').map(x=>parseFloat(x.trim())); if(arr.length===4) bbox=arr; }
+  // apply filters locally
+  const out = {};
+  Object.keys(currentData || {}).forEach(k=>{
+    const v = currentData[k];
+    if(shift && v.shift !== shift) return;
+    if(status && v.status !== status) return;
+    if(v.timestamp){
+      const ts = Number(v.timestamp);
+      if(ts < from || ts > to) return;
+    }
+    if(bbox && (v.lat && v.lng)){
+      const lat = Number(v.lat), lng = Number(v.lng);
+      if(!(lat >= bbox[0] && lat <= bbox[2] && lng >= bbox[1] && lng <= bbox[3])) return;
+    }
+    out[k]=v;
+  });
+  // clear & render from out
+  // remove markers not in out
+  Object.keys(markers).forEach(k=>{ if(!out[k]){ map.removeLayer(markers[k]); delete markers[k]; } });
+  petugasListEl.innerHTML=''; Object.keys(out).sort((a,b)=> (Number((out[b].timestamp||0)) - Number((out[a].timestamp||0)))).forEach(k=> addOrUpdateListItem(k,out[k]));
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  document.getElementById('search').value=''; document.getElementById('filterShift').value=''; document.getElementById('filterStatus').value=''; document.getElementById('bbox').value=''; document.getElementById('fromTime').value=''; document.getElementById('toTime').value='';
+  renderAll(currentData);
+});
+
+/* simple search */
+document.getElementById('search').addEventListener('input', (e)=>{
+  const q = e.target.value.toLowerCase();
+  if(!q) return renderAll(currentData);
+  const out = {};
+  Object.keys(currentData||{}).forEach(k=>{
+    const v = currentData[k];
+    if((v.name||'').toLowerCase().includes(q) || (k||'').toLowerCase().includes(q) || (v.description||'').toLowerCase().includes(q)) out[k]=v;
+  });
+  petugasListEl.innerHTML=''; Object.keys(out).forEach(k=> addOrUpdateListItem(k,out[k]));
+});
+
+/* -------------------------
+   FOLLOW Toggle
+   ------------------------- */
+function setFollow(id){
+  if(followId === id){ followId = null; document.getElementById('followStatus').innerText='off'; return; }
+  followId = id; document.getElementById('followStatus').innerText='on';
+}
+
+/* -------------------------
+   EXPORT CSV / XLSX
+   ------------------------- */
+document.getElementById('btnExport').addEventListener('click', exportCSV);
+document.getElementById('btnExportX')?.addEventListener('click', ()=>exportXLSX()); // optional
+
+function exportCSV(){
+  const rows = [['id','name','lat','lng','description','shift','status','timestamp']];
+  Object.keys(currentData||{}).forEach(k=>{
+    const d = currentData[k]||{};
+    rows.push([k,d.name||'',d.lat||'',d.lng||'',(d.description||'').replace(/,/g,' '),d.shift||'',d.status||'',d.timestamp||'']);
+  });
+  const csv = rows.map(r=> r.map(c=> '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'patroli_export.csv'; a.click();
+}
+
+function exportXLSX(){
+  try{
+    const arr = Object.keys(currentData||{}).map(k=> ({id:k, ...(currentData[k]||{})}));
+    const ws = XLSX.utils.json_to_sheet(arr);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Patroli');
+    XLSX.writeFile(wb, 'patroli_export.xlsx');
+  }catch(e){ showDbg('XLSX export error: '+e.message); }
+}
+
+/* -------------------------
+   LOGIC: ping & local time
+   ------------------------- */
+setInterval(()=>{ document.getElementById('localTime').innerText = new Date().toLocaleString(); },1000);
+function pingServer(){
+  const t0 = Date.now();
+  db.ref('.info/connected').once('value').then(()=> {
+    const t1 = Date.now(); document.getElementById('lastPing').innerText = 'Ping: ' + (t1 - t0) + 'ms';
+  }).catch(()=>{ document.getElementById('lastPing').innerText = 'Ping: -'; });
+}
+setInterval(pingServer,8000); pingServer();
+
+/* -------------------------
+   ENABLE SOUND
+   ------------------------- */
+document.getElementById('btnEnableNotif').addEventListener('click', async ()=>{
+  try{ await notify.play(); audioEnabled = true; document.getElementById('btnEnableNotif').innerText = 'Sound ON'; }catch(e){ audioEnabled = true; document.getElementById('btnEnableNotif').innerText = 'Sound ON (blocked until interact)'; }
+});
+
+/* -------------------------
+   UTIL: initial center & ensure nice pinch
+   ------------------------- */
+map.on('popupopen', ()=>{ /* autopan handled */ });
+
+/* -------------------------
+   Final safety: if DB empty show hint
+   ------------------------- */
+setTimeout(()=>{
+  db.ref('/patroli').once('value').then(snap=>{
+    if(!snap.exists()){
+      showDbg('DB /patroli kosong. Cek: https://silitpitik7373-default-rtdb.firebaseio.com/patroli.json');
+    }
+  });
+},2000);
+
+</script>
+</body>
+</html>
