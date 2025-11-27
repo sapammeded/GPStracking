@@ -1,299 +1,390 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIVE Patrol Monitoring</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #0f172a; 
-            color: white;
-        }
-        .container { 
-            display: grid; 
-            grid-template-columns: 350px 1fr;
-            height: 100vh;
-        }
-        .sidebar {
-            background: #1e293b;
-            padding: 20px;
-            overflow-y: auto;
-            border-right: 2px solid #334155;
-        }
-        .main-content {
-            position: relative;
-        }
-        #map { 
-            height: 100%; 
-            width: 100%; 
-        }
-        .header {
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            padding: 15px;
-            text-align: center;
-            border-bottom: 2px solid #334155;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin: 15px 0;
-        }
-        .stat-card {
-            background: #334155;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #60a5fa;
-        }
-        .officer-list {
-            margin-top: 20px;
-        }
-        .officer-item {
-            background: #334155;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            border-left: 4px solid #3b82f6;
-        }
-        .online { border-left-color: #10b981; }
-        .offline { border-left-color: #ef4444; }
-        .controls {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(30, 41, 59, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-        }
-        .btn {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin: 5px;
-            font-weight: bold;
-        }
-        .photo-thumb {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-right: 10px;
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PATROLI — MONITOR (CYBER DARK)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root{
+    --bg:#05060a; --panel:#07101a; --card:#0b1220; --muted:#9aa4b2; --accent:#00e6ff; --accent2:#8b5cf6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#02040a,#07101a);color:#e6f7ff}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:linear-gradient(90deg,#041023,#081428);border-bottom:1px solid rgba(255,255,255,0.02)}
+  .brand{font-weight:800;letter-spacing:0.6px}
+  .wrap{display:grid;grid-template-columns:380px 1fr;gap:14px;padding:14px;height:calc(100vh - 64px);align-items:stretch}
+  .panel{background:linear-gradient(180deg,var(--panel),#041018);border-radius:12px;padding:12px;box-shadow:0 12px 40px rgba(2,6,23,0.7);overflow:auto;border:1px solid rgba(255,255,255,0.03)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:var(--accent);cursor:pointer}
+  .btn.primary{background:linear-gradient(90deg,var(--accent),#00c2ff);color:#001;box-shadow:0 6px 18px rgba(0,200,255,0.06)}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:rgba(0,0,0,0.2);color:#e6f7ff}
+  #map{height:100%;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
+  .list-item{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;margin-bottom:8px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent);cursor:pointer}
+  .thumb{width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,0.03)}
+  .meta{flex:1}
+  .meta h4{margin:0;font-size:14px;color:var(--accent)}
+  .meta p{margin:4px 0 0;font-size:12px;color:var(--muted)}
+  .small{font-size:12px;color:var(--muted)}
+  .status{display:flex;gap:8px;align-items:center}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.active{background:#00ff9d}
+  .dot.idle{background:#ffcc00}
+  .dot.offline{background:#ff4d6d}
+  .footer-note{font-size:12px;color:#7f99a6;margin-top:10px;text-align:center}
+  .row{display:flex;gap:8px}
+  .slider{width:100%}
+  .muted-box{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);color:var(--muted);font-size:13px}
+  @media (max-width:900px){ .wrap{grid-template-columns:1fr} #map{height:50vh} }
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="header">
-                <h1>🚔 LIVE PATROL MONITORING</h1>
-                <p>Real-time Tracking System</p>
-            </div>
-            
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number" id="activeOfficers">0</div>
-                    <div>Petugas Aktif</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="totalPhotos">0</div>
-                    <div>Total Foto</div>
-                </div>
-            </div>
+  <div class="topbar">
+    <div class="brand">PATROLI — MONITOR (CYBER DARK)</div>
+    <div class="small">Realtime • Auto-follow • Replay • Export • Notif</div>
+  </div>
 
-            <div class="officer-list" id="officerList">
-                <!-- Officer list will be populated here -->
-            </div>
-        </div>
+  <div class="wrap">
+    <div class="panel" id="leftPanel">
+      <div class="controls">
+        <button class="btn primary" id="btnCenterAll">Center All</button>
+        <button class="btn" id="btnToggleFollow">Follow: OFF</button>
+        <button class="btn" id="btnToggleSound">Sound: OFF</button>
+        <button class="btn" id="btnExportCSV">Export CSV</button>
+        <button class="btn" id="btnExportXLSX">Export XLSX</button>
+      </div>
 
-        <!-- Main Map -->
-        <div class="main-content">
-            <div id="map"></div>
-            <div class="controls">
-                <button class="btn" onclick="exportExcel()">📊 Export Excel</button>
-                <button class="btn" onclick="toggleSound()">🔊 Sound: ON</button>
-                <button class="btn" onclick="centerMap()">🎯 Center Map</button>
-            </div>
+      <div style="margin-bottom:10px">
+        <label>Search / Filter (name, area, shift)</label>
+        <input id="inpSearch" placeholder="ketik nama, shift, atau area..."/>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label>From (ISO)</label>
+          <input id="inpFrom" placeholder="2025-11-27T00:00:00Z"/>
         </div>
+        <div style="flex:1">
+          <label>To (ISO)</label>
+          <input id="inpTo" placeholder="2025-11-27T23:59:59Z"/>
+        </div>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label>Area bbox (swLat,swLng,neLat,neLng)</label>
+        <input id="inpBbox" placeholder="-6.35,106.70,-6.10,106.90"/>
+      </div>
+
+      <div style="margin-top:8px">
+        <div style="font-weight:800;margin-bottom:8px">Petugas Aktif</div>
+        <div id="list"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div style="font-weight:800;margin-bottom:6px">Playback / Replay</div>
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn" id="btnStartReplay">Start Replay</button>
+          <button class="btn" id="btnStopReplay">Stop</button>
+          <select id="selReplaySpeed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select>
+        </div>
+        <div class="muted-box small" id="replayInfo">Pilih petugas lalu klik Start Replay untuk melihat jejak pergerakan.</div>
+      </div>
+
+      <div class="footer-note">Tips: Pastikan database URL di config sesuai project (silitpitik7373). Jika foto tidak muncul, cek Cloudinary preset.</div>
     </div>
 
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <div class="panel" id="mapPanel">
+      <div id="map"></div>
+    </div>
+  </div>
 
-    <script>
-        // Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
-            authDomain: "silitpitik7373.firebaseapp.com",
-            databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
-            projectId: "silitpitik7373",
-            storageBucket: "silitpitik7373.appspot.com",
-            appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
-        };
+<!-- libs -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+<script>
+/* =======================
+   CONFIG - using your project (silitpitik7373)
+   Change if needed.
+   ======================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+const CLOUDINARY = { cloudName: "dowaohqkh" };
 
-        // Initialize Map
-        const map = L.map('map').setView([-6.2, 106.8], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+/* init firebase */
+if(!window.firebase || !firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+firebase.auth().signInAnonymously().catch(e=>console.warn('auth err',e));
 
-        let markers = new Map();
-        let soundEnabled = true;
-        let lastPhotoTime = 0;
+/* UI refs */
+const elList = document.getElementById('list');
+const inpSearch = document.getElementById('inpSearch');
+const inpFrom = document.getElementById('inpFrom');
+const inpTo = document.getElementById('inpTo');
+const inpBbox = document.getElementById('inpBbox');
+const btnCenterAll = document.getElementById('btnCenterAll');
+const btnToggleFollow = document.getElementById('btnToggleFollow');
+const btnToggleSound = document.getElementById('btnToggleSound');
+const btnExportCSV = document.getElementById('btnExportCSV');
+const btnExportXLSX = document.getElementById('btnExportXLSX');
+const btnStartReplay = document.getElementById('btnStartReplay');
+const btnStopReplay = document.getElementById('btnStopReplay');
+const selReplaySpeed = document.getElementById('selReplaySpeed');
+let FOLLOW = false;
+let SOUND = false;
 
-        // Notification Sound
-        function playNotification() {
-            if (!soundEnabled) return;
-            const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
-            audio.play().catch(e => console.log('Audio play failed'));
-        }
+/* map init */
+const map = L.map('map', {zoomControl:false}).setView([-6.2,106.81666], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+let markers = {}; // uid -> marker
+let trackLines = {}; // uid -> polyline
 
-        function toggleSound() {
-            soundEnabled = !soundEnabled;
-            document.querySelector('.btn:nth-child(2)').textContent = 
-                soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
-        }
+/* state */
+let liveCache = {}; // uid -> last live object
+let patrolCache = {}; // uid -> array of patrol records (sorted desc by time)
+let listOrder = []; // uid order by lastSeen desc
+let selectedUid = null;
 
-        function centerMap() {
-            if (markers.size > 0) {
-                const group = new L.featureGroup(Array.from(markers.values()));
-                map.fitBounds(group.getBounds());
-            }
-        }
+/* beep */
+function beep(){ if(!SOUND) return; try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.05; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>{ o.stop(); ctx.close(); },150); }catch(e){} }
 
-        // Export to Excel
-        function exportExcel() {
-            const officers = Array.from(markers.values()).map(marker => ({
-                'Nama': marker.officerName,
-                'Latitude': marker.getLatLng().lat,
-                'Longitude': marker.getLatLng().lng,
-                'Terakhir Update': new Date(marker.lastUpdate).toLocaleString('id-ID')
-            }));
+/* helpers */
+function formatTs(ts){ if(!ts) return 'Invalid Date'; const d = new Date(+ts); if(isNaN(d)) return 'Invalid Date'; return d.toLocaleString(); }
+function safePhoto(u){ if(!u) return null; return u; }
+function addOrUpdateMarker(uid, lat, lon, title, photo, ts){
+  if(!lat || !lon) return;
+  if(!markers[uid]){
+    const m = L.marker([lat,lon], {title: title || uid}).addTo(map);
+    m.bindPopup(`<b>${title||uid}</b><br>${formatTs(ts)}<br><img src="${photo||''}" style="width:200px;height:140px;object-fit:cover" onerror="this.style.display='none'">`);
+    markers[uid]=m;
+  } else {
+    markers[uid].setLatLng([lat,lon]);
+    markers[uid].setPopupContent(`<b>${title||uid}</b><br>${formatTs(ts)}<br><img src="${photo||''}" style="width:200px;height:140px;object-fit:cover" onerror="this.style.display='none'">`);
+  }
+  if(FOLLOW && selectedUid === uid){
+    map.setView([lat,lon], 16, {animate:true});
+  }
+}
 
-            const ws = XLSX.utils.json_to_sheet(officers);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Petugas');
-            XLSX.writeFile(wb, 'patrol_monitoring.xlsx');
-        }
+/* render list */
+function renderList(){
+  elList.innerHTML='';
+  listOrder.forEach(uid=>{
+    const live = liveCache[uid] || {};
+    const pres = live.presence || {};
+    const lastGps = live.lastGps || {};
+    const lastEntries = patrolCache[uid] || [];
+    const last = lastEntries[0] || {};
+    const name = pres.officerName || last.name || uid;
+    const photo = last.photo || last.photoUrl || live.photoUrl || null;
+    const lastSeen = (pres.lastSeen) || (last.time) || (last.timestamp) || 0;
+    const li = document.createElement('div'); li.className='list-item'; li.id = 'li-'+uid;
+    li.innerHTML = `<img class="thumb" src="${photo||('https://res.cloudinary.com/'+CLOUDINARY.cloudName+'/image/upload/w_300,h_220,c_fill/q_auto/white.png')}" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22120%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%2305121a%22/><text x=%2250%25%22 y=%2250%25%22 fill=%22%237a8b9a%22 font-size=%2210%22 text-anchor=%22middle%22 dy=%22.3em%22>no image</text></svg>'">` +
+                 `<div class="meta"><h4>${name}</h4><p>${last.area || last.description || ''} • ${formatTs(last.time || last.timestamp || pres.lastSeen || 0)}</p></div>` +
+                 `<div class="status"><div class="dot ${live.presence && live.presence.lastSeen && (Date.now() - live.presence.lastSeen < 120000) ? 'active' : (live.presence && live.presence.lastSeen ? 'idle' : 'offline') }"></div></div>`;
+    li.onclick = ()=>{ selectedUid = uid; centerOnUid(uid); startHighlight(uid); };
+    elList.appendChild(li);
+  });
+}
 
-        // Real-time Monitoring
-        function startMonitoring() {
-            // Monitor live positions
-            database.ref('live').on('value', (snapshot) => {
-                const liveData = snapshot.val();
-                document.getElementById('activeOfficers').textContent = 
-                    liveData ? Object.keys(liveData).length : 0;
+/* center on uid */
+function centerOnUid(uid){
+  const live = liveCache[uid] || {};
+  const lg = live.lastGps || {};
+  if(lg && lg.lat && lg.lon){
+    map.setView([lg.lat, lg.lon], 15, {animate:true});
+    if(markers[uid]) markers[uid].openPopup();
+  } else if(patrolCache[uid] && patrolCache[uid][0]){
+    const it = patrolCache[uid][0];
+    addOrUpdateMarker(uid, it.lat || it.latitude || it.latd, it.lng || it.lon || it.longitude, it.name || it.officer || uid, it.photo || it.photoUrl, it.time || it.timestamp);
+    map.setView([it.lat || it.latitude || it.latd, it.lng || it.lon || it.longitude], 15, {animate:true});
+  }
+}
 
-                if (liveData) {
-                    updateOfficersList(liveData);
-                    updateMapMarkers(liveData);
-                }
-            });
+/* highlight UI */
+function startHighlight(uid){
+  document.querySelectorAll('.list-item').forEach(n=> n.style.boxShadow = 'none');
+  const el = document.getElementById('li-'+uid); if(el) el.style.boxShadow = '0 8px 30px rgba(0,230,255,0.06)';
+}
 
-            // Monitor new photos
-            database.ref('patroli').on('value', (snapshot) => {
-                const patrolData = snapshot.val();
-                let photoCount = 0;
-                
-                if (patrolData) {
-                    Object.values(patrolData).forEach(user => {
-                        if (user) photoCount += Object.keys(user).length;
-                    });
-                }
-                
-                document.getElementById('totalPhotos').textContent = photoCount;
-                
-                // Play sound for new photos
-                if (photoCount > 0 && Date.now() - lastPhotoTime > 5000) {
-                    playNotification();
-                    lastPhotoTime = Date.now();
-                }
-            });
-        }
+/* process patroli snap */
+function processPatroliSnapshot(obj){
+  Object.keys(obj || {}).forEach(uid=>{
+    const entriesObj = obj[uid] || {};
+    const arr = Object.keys(entriesObj).map(k=> Object.assign({ _key:k }, entriesObj[k]) );
+    arr.sort((a,b)=> (b.time||b.timestamp||0) - (a.time||a.timestamp||0));
+    patrolCache[uid] = arr;
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  Object.keys(patrolCache).forEach(uid=>{
+    const last = patrolCache[uid] && patrolCache[uid][0];
+    if(last && (last.lat || last.latitude) && (last.lng || last.lon || last.longitude)){
+      const lat = last.lat || last.latitude || last.latd;
+      const lon = last.lng || last.lon || last.longitude || last.long;
+      addOrUpdateMarker(uid, lat, lon, last.name || last.officer || uid, last.photo || last.photoUrl || null, last.time || last.timestamp);
+    }
+  });
+  renderList();
+}
 
-        function updateOfficersList(liveData) {
-            const officerList = document.getElementById('officerList');
-            officerList.innerHTML = '';
+/* process live snapshot */
+function processLiveSnapshot(obj){
+  Object.keys(obj || {}).forEach(uid=>{
+    liveCache[uid] = obj[uid] || {};
+    const lg = liveCache[uid].lastGps || {};
+    const name = (liveCache[uid].presence && liveCache[uid].presence.officerName) || liveCache[uid].officer || uid;
+    const photo = liveCache[uid].photoUrl || liveCache[uid].photo || null;
+    if(lg && lg.lat && lg.lon){
+      addOrUpdateMarker(uid, lg.lat, lg.lon, name, photo, lg.time || liveCache[uid].presence && liveCache[uid].presence.lastSeen);
+    }
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
 
-            Object.entries(liveData).forEach(([userId, data]) => {
-                const isOnline = Date.now() - data.lastGps.time < 300000; // 5 minutes
-                const officerItem = document.createElement('div');
-                officerItem.className = `officer-item ${isOnline ? 'online' : 'offline'}`;
-                officerItem.innerHTML = `
-                    <strong>${data.presence?.officerName || 'Unknown'}</strong>
-                    <div style="font-size: 0.8em; color: #94a3b8;">
-                        📍 ${data.lastGps.lat?.toFixed(4)}, ${data.lastGps.lon?.toFixed(4)}
-                    </div>
-                    <div style="font-size: 0.7em; color: #64748b;">
-                        ⏰ ${formatTimeAgo(data.lastGps.time)}
-                    </div>
-                `;
-                officerList.appendChild(officerItem);
-            });
-        }
+/* attach listeners to both /patroli and /live */
+const patroliRef = db.ref('/patroli');
+const liveRef = db.ref('/live');
 
-        function updateMapMarkers(liveData) {
-            Object.entries(liveData).forEach(([userId, data]) => {
-                const { lat, lon } = data.lastGps;
-                const officerName = data.presence?.officerName || 'Unknown';
-                
-                if (markers.has(userId)) {
-                    // Update existing marker
-                    markers.get(userId).setLatLng([lat, lon]);
-                } else {
-                    // Create new marker
-                    const marker = L.marker([lat, lon])
-                        .addTo(map)
-                        .bindPopup(`
-                            <strong>${officerName}</strong><br>
-                            📍 ${lat.toFixed(6)}, ${lon.toFixed(6)}<br>
-                            ⏰ ${new Date(data.lastGps.time).toLocaleTimeString()}
-                        `);
-                    
-                    marker.officerName = officerName;
-                    marker.lastUpdate = data.lastGps.time;
-                    markers.set(userId, marker);
-                }
-            });
+patroliRef.on('value', snap=>{
+  const obj = snap.val();
+  processPatroliSnapshot(obj);
+}, e=>console.warn('patroli err', e));
 
-            // Remove offline markers
-            markers.forEach((marker, userId) => {
-                if (!liveData[userId]) {
-                    map.removeLayer(marker);
-                    markers.delete(userId);
-                }
-            });
-        }
+liveRef.on('value', snap=>{
+  const obj = snap.val();
+  processLiveSnapshot(obj);
+}, e=>console.warn('live err', e));
 
-        function formatTimeAgo(timestamp) {
-            const diff = Date.now() - timestamp;
-            const minutes = Math.floor(diff / 60000);
-            if (minutes < 1) return 'Baru saja';
-            if (minutes < 60) return `${minutes} menit lalu`;
-            return `${Math.floor(minutes / 60)} jam lalu`;
-        }
+/* child_added trigger for alerts */
+patroliRef.on('child_added', snap=>{ beep(); });
+patroliRef.on('child_changed', snap=>{ beep(); });
+liveRef.on('child_changed', snap=>{ beep(); });
 
-        // Start monitoring when page loads
-        document.addEventListener('DOMContentLoaded', startMonitoring);
-    </script>
+/* search filter */
+inpSearch.addEventListener('input', ()=>{
+  const q = inpSearch.value.trim().toLowerCase();
+  Array.from(document.querySelectorAll('.list-item')).forEach(el=>{
+    const text = el.innerText.toLowerCase();
+    el.style.display = text.indexOf(q) !== -1 ? 'flex' : 'none';
+  });
+});
+
+/* center all */
+btnCenterAll.addEventListener('click', ()=>{
+  const keys = Object.keys(markers);
+  if(!keys.length) return alert('No markers');
+  const group = keys.map(k=> markers[k].getLatLng());
+  const bounds = L.latLngBounds(group);
+  map.fitBounds(bounds.pad(0.2));
+});
+
+/* follow toggle */
+btnToggleFollow.addEventListener('click', ()=>{
+  FOLLOW = !FOLLOW;
+  btnToggleFollow.textContent = 'Follow: ' + (FOLLOW ? 'ON' : 'OFF');
+});
+
+/* sound toggle */
+btnToggleSound.addEventListener('click', ()=>{ SOUND = !SOUND; btnToggleSound.textContent = 'Sound: ' + (SOUND ? 'ON' : 'OFF'); });
+
+/* export helpers */
+function collectExportRows(){
+  const rows=[];
+  listOrder.forEach(uid=>{
+    const lastPat = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const live = liveCache[uid] || {};
+    const pres = live.presence || {};
+    const lastGps = live.lastGps || {};
+    rows.push({
+      uid,
+      officer: pres.officerName || lastPat.name || '',
+      area: lastPat.area || lastPat.description || '',
+      lat: lastGps.lat || lastPat.lat || lastPat.latitude || '',
+      lon: lastGps.lon || lastPat.lng || lastPat.lon || lastPat.longitude || '',
+      photo: lastPat.photo || lastPat.photoUrl || live.photoUrl || '',
+      time: lastPat.time || lastPat.timestamp || lastGps.time || pres.lastSeen || ''
+    });
+  });
+  return rows;
+}
+
+btnExportCSV.addEventListener('click', ()=>{
+  const rows = collectExportRows();
+  if(!rows.length) return alert('No data to export');
+  const keys = Object.keys(rows[0]);
+  let csv = keys.join(',') + '\n';
+  rows.forEach(r=>{
+    csv += keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(',') + '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'patrol_export.csv'; a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); },1500);
+});
+
+btnExportXLSX.addEventListener('click', ()=>{
+  const rows = collectExportRows();
+  if(!rows.length) return alert('No data to export');
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'patrol');
+  XLSX.writeFile(wb, 'patrol_export_'+Date.now()+'.xlsx');
+});
+
+/* replay / playback */
+let replayInterval = null;
+btnStartReplay.addEventListener('click', ()=>{
+  if(!selectedUid) return alert('Pilih petugas terlebih dahulu (klik di daftar).');
+  const records = (patrolCache[selectedUid] || []).slice().reverse(); // oldest -> newest
+  if(!records.length) return alert('Tidak ada riwayat untuk petugas ini.');
+  const speed = Number(selReplaySpeed.value) || 1;
+  let idx = 0;
+  if(trackLines[selectedUid]) map.removeLayer(trackLines[selectedUid]);
+  const latlngs = [];
+  replayInterval = setInterval(()=>{
+    const it = records[idx];
+    const lat = it.lat || it.latitude || it.latd;
+    const lon = it.lng || it.lon || it.longitude || it.long;
+    if(lat && lon){
+      latlngs.push([lat,lon]);
+      if(trackLines[selectedUid]) trackLines[selectedUid].setLatLngs(latlngs);
+      else trackLines[selectedUid] = L.polyline(latlngs, {color: '#00e6ff', weight:4, opacity:0.85}).addTo(map);
+      map.setView([lat,lon], 15, {animate:true});
+    }
+    idx++;
+    if(idx >= records.length){ clearInterval(replayInterval); replayInterval = null; }
+  }, 1000 / speed);
+});
+
+btnStopReplay.addEventListener('click', ()=>{ if(replayInterval) clearInterval(replayInterval); replayInterval = null; });
+
+/* highlight */
+function startHighlight(uid){ document.querySelectorAll('.list-item').forEach(n=>n.style.boxShadow='none'); const el = document.getElementById('li-'+uid); if(el) el.style.boxShadow='0 8px 30px rgba(0,230,255,0.06)'; }
+
+/* safety: connection state */
+db.ref('.info/connected').on('value', s=>{ if(!s.val()) console.warn('Firebase disconnected'); });
+
+console.log('Cyber Dark Monitor initialized and listening to /patroli & /live');
+</script>
 </body>
 </html>
