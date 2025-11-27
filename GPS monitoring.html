@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIVE Patrol Monitoring</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #0f172a; 
+            color: white;
+        }
+        .container { 
+            display: grid; 
+            grid-template-columns: 350px 1fr;
+            height: 100vh;
+        }
+        .sidebar {
+            background: #1e293b;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 2px solid #334155;
+        }
+        .main-content {
+            position: relative;
+        }
+        #map { 
+            height: 100%; 
+            width: 100%; 
+        }
+        .header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            padding: 15px;
+            text-align: center;
+            border-bottom: 2px solid #334155;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stat-card {
+            background: #334155;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        .officer-list {
+            margin-top: 20px;
+        }
+        .officer-item {
+            background: #334155;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+        .online { border-left-color: #10b981; }
+        .offline { border-left-color: #ef4444; }
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        .photo-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>🚔 LIVE PATROL MONITORING</h1>
+                <p>Real-time Tracking System</p>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="activeOfficers">0</div>
+                    <div>Petugas Aktif</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalPhotos">0</div>
+                    <div>Total Foto</div>
+                </div>
+            </div>
+
+            <div class="officer-list" id="officerList">
+                <!-- Officer list will be populated here -->
+            </div>
+        </div>
+
+        <!-- Main Map -->
+        <div class="main-content">
+            <div id="map"></div>
+            <div class="controls">
+                <button class="btn" onclick="exportExcel()">📊 Export Excel</button>
+                <button class="btn" onclick="toggleSound()">🔊 Sound: ON</button>
+                <button class="btn" onclick="centerMap()">🎯 Center Map</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+            authDomain: "silitpitik7373.firebaseapp.com",
+            databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+            projectId: "silitpitik7373",
+            storageBucket: "silitpitik7373.appspot.com",
+            appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Initialize Map
+        const map = L.map('map').setView([-6.2, 106.8], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let markers = new Map();
+        let soundEnabled = true;
+        let lastPhotoTime = 0;
+
+        // Notification Sound
+        function playNotification() {
+            if (!soundEnabled) return;
+            const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+            audio.play().catch(e => console.log('Audio play failed'));
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.querySelector('.btn:nth-child(2)').textContent = 
+                soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+        }
+
+        function centerMap() {
+            if (markers.size > 0) {
+                const group = new L.featureGroup(Array.from(markers.values()));
+                map.fitBounds(group.getBounds());
+            }
+        }
+
+        // Export to Excel
+        function exportExcel() {
+            const officers = Array.from(markers.values()).map(marker => ({
+                'Nama': marker.officerName,
+                'Latitude': marker.getLatLng().lat,
+                'Longitude': marker.getLatLng().lng,
+                'Terakhir Update': new Date(marker.lastUpdate).toLocaleString('id-ID')
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(officers);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Petugas');
+            XLSX.writeFile(wb, 'patrol_monitoring.xlsx');
+        }
+
+        // Real-time Monitoring
+        function startMonitoring() {
+            // Monitor live positions
+            database.ref('live').on('value', (snapshot) => {
+                const liveData = snapshot.val();
+                document.getElementById('activeOfficers').textContent = 
+                    liveData ? Object.keys(liveData).length : 0;
+
+                if (liveData) {
+                    updateOfficersList(liveData);
+                    updateMapMarkers(liveData);
+                }
+            });
+
+            // Monitor new photos
+            database.ref('patroli').on('value', (snapshot) => {
+                const patrolData = snapshot.val();
+                let photoCount = 0;
+                
+                if (patrolData) {
+                    Object.values(patrolData).forEach(user => {
+                        if (user) photoCount += Object.keys(user).length;
+                    });
+                }
+                
+                document.getElementById('totalPhotos').textContent = photoCount;
+                
+                // Play sound for new photos
+                if (photoCount > 0 && Date.now() - lastPhotoTime > 5000) {
+                    playNotification();
+                    lastPhotoTime = Date.now();
+                }
+            });
+        }
+
+        function updateOfficersList(liveData) {
+            const officerList = document.getElementById('officerList');
+            officerList.innerHTML = '';
+
+            Object.entries(liveData).forEach(([userId, data]) => {
+                const isOnline = Date.now() - data.lastGps.time < 300000; // 5 minutes
+                const officerItem = document.createElement('div');
+                officerItem.className = `officer-item ${isOnline ? 'online' : 'offline'}`;
+                officerItem.innerHTML = `
+                    <strong>${data.presence?.officerName || 'Unknown'}</strong>
+                    <div style="font-size: 0.8em; color: #94a3b8;">
+                        📍 ${data.lastGps.lat?.toFixed(4)}, ${data.lastGps.lon?.toFixed(4)}
+                    </div>
+                    <div style="font-size: 0.7em; color: #64748b;">
+                        ⏰ ${formatTimeAgo(data.lastGps.time)}
+                    </div>
+                `;
+                officerList.appendChild(officerItem);
+            });
+        }
+
+        function updateMapMarkers(liveData) {
+            Object.entries(liveData).forEach(([userId, data]) => {
+                const { lat, lon } = data.lastGps;
+                const officerName = data.presence?.officerName || 'Unknown';
+                
+                if (markers.has(userId)) {
+                    // Update existing marker
+                    markers.get(userId).setLatLng([lat, lon]);
+                } else {
+                    // Create new marker
+                    const marker = L.marker([lat, lon])
+                        .addTo(map)
+                        .bindPopup(`
+                            <strong>${officerName}</strong><br>
+                            📍 ${lat.toFixed(6)}, ${lon.toFixed(6)}<br>
+                            ⏰ ${new Date(data.lastGps.time).toLocaleTimeString()}
+                        `);
+                    
+                    marker.officerName = officerName;
+                    marker.lastUpdate = data.lastGps.time;
+                    markers.set(userId, marker);
+                }
+            });
+
+            // Remove offline markers
+            markers.forEach((marker, userId) => {
+                if (!liveData[userId]) {
+                    map.removeLayer(marker);
+                    markers.delete(userId);
+                }
+            });
+        }
+
+        function formatTimeAgo(timestamp) {
+            const diff = Date.now() - timestamp;
+            const minutes = Math.floor(diff / 60000);
+            if (minutes < 1) return 'Baru saja';
+            if (minutes < 60) return `${minutes} menit lalu`;
+            return `${Math.floor(minutes / 60)} jam lalu`;
+        }
+
+        // Start monitoring when page loads
+        document.addEventListener('DOMContentLoaded', startMonitoring);
+    </script>
+</body>
+</html>
