@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Patroli Monitoring</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+
+<style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f3f4f6; }
+    .header { background:#0b1f4a; padding:14px; color:white; font-size:20px; font-weight:700; }
+    .layout { display:grid; grid-template-columns:340px 1fr; gap:12px; padding:12px; }
+    .panel { background:white; padding:12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    #map { height:500px; border-radius:8px; }
+    .item { border:1px solid #ddd; padding:10px; border-radius:6px; margin-bottom:10px; cursor:pointer; }
+    .item:hover { background:#f0f0f0; }
+    .small { color:#666; font-size:13px; }
+</style>
+</head>
+
+<body>
+
+<div class="header">Admin Monitor — Patroli</div>
+
+<div class="layout">
+    <div class="panel">
+        <h3>Petugas Aktif</h3>
+        <div id="petugasList"></div>
+    </div>
+
+    <div class="panel">
+        <h3>Peta & Detail</h3>
+        <div id="map"></div>
+        <div id="detail" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<!-- Leaflet -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<script>
+// =====================================
+// FIREBASE CONFIG (FINAL FIXED)
+// =====================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+
+firebase.initializeApp(firebaseConfig);
+firebase.auth().signInAnonymously();
+
+const db = firebase.database();
+const listEl = document.getElementById("petugasList");
+const detailEl = document.getElementById("detail");
+
+// =====================================
+// LEAFLET MAP
+// =====================================
+const map = L.map('map').setView([-6.2, 106.8], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+let markers = {};
+
+// =====================================
+// LISTENER UNTUK LIVE LOCATION
+// =====================================
+db.ref("live").on("value", snap => {
+    const data = snap.val() || {};
+    listEl.innerHTML = "";
+
+    if(Object.keys(data).length === 0){
+        listEl.innerHTML = "<div class='small'>Belum ada petugas aktif</div>";
+        return;
+    }
+
+    Object.entries(data).forEach(([uid, item]) => {
+        const name = item.presence?.officerName ?? uid;
+        const lastSeen = item.presence?.lastSeen ? new Date(item.presence.lastSeen).toLocaleString() : "-";
+
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+            <div><b>${name}</b></div>
+            <div class="small">Last Seen: ${lastSeen}</div>
+        `;
+        div.onclick = () => openDetail(uid);
+        listEl.appendChild(div);
+
+        if(item.lastGps){
+            const {lat, lon} = item.lastGps;
+
+            if(markers[uid]) markers[uid].setLatLng([lat, lon]);
+            else markers[uid] = L.marker([lat, lon]).addTo(map).bindPopup(name);
+        }
+    });
+});
+
+// =====================================
+// DETAIL PETUGAS
+// =====================================
+function openDetail(uid){
+    db.ref("patroli/" + uid).once("value", snap => {
+        const data = snap.val();
+        if(!data){
+            detailEl.innerHTML = "<div class='small'>Tidak ada data patroli</div>";
+            return;
+        }
+
+        let html = `<h3>Detail Petugas: ${uid}</h3>`;
+
+        const arr = Object.values(data);
+        arr.reverse().forEach(item => {
+            html += `
+                <div style="margin-top:12px; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    <div><b>${item.description ?? "Laporan"}</b></div>
+                    <div class="small">${new Date(item.time).toLocaleString()}</div>
+                    ${item.photo ? `<img src="${item.photo}" style="width:220px; margin-top:8px; border-radius:6px;">` : ""}
+                </div>
+            `;
+        });
+
+        detailEl.innerHTML = html;
+    });
+}
+
+</script>
+</body>
+</html>
